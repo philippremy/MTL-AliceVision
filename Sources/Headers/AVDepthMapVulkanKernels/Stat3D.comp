@@ -1,0 +1,91 @@
+#ifndef STAT_3D
+#define STAT_3D
+
+// Changed from double to float.
+// Most Vulkan drivers do not support fp64 shader code, so we fall back to
+// lower precision.
+
+#include "Eig33.comp"
+
+struct Stat3D
+{
+    float xsum;
+    float ysum;
+    float zsum;
+    float xxsum;
+    float yysum;
+    float zzsum;
+    float xysum;
+    float xzsum;
+    float yzsum;
+    float count;
+};
+
+void Stat3D_update(inout Stat3D stat3D, const vec3 p, const float w) {
+    stat3D.xxsum += float(p.x) * float(p.x);
+    stat3D.yysum += float(p.y) * float(p.y);
+    stat3D.zzsum += float(p.z) * float(p.z);
+    stat3D.xysum += float(p.x) * float(p.y);
+    stat3D.xzsum += float(p.x) * float(p.z);
+    stat3D.yzsum += float(p.y) * float(p.z);
+    stat3D.xsum  += float(p.x);
+    stat3D.ysum  += float(p.y);
+    stat3D.zsum  += float(p.z);
+    stat3D.count += float(w);
+}
+
+void Stat3D_getEigenVectorsDesc(inout Stat3D stat3D, inout vec3 cg, inout vec3 v1, inout vec3 v2, inout vec3 v3, inout float d1, inout float d2, inout float d3) {
+
+    float A[3][3], V[3][3], d[3];
+
+    float xmean = stat3D.xsum / stat3D.count;
+    float ymean = stat3D.ysum / stat3D.count;
+    float zmean = stat3D.zsum / stat3D.count;
+
+    A[0][0] = (stat3D.xxsum - stat3D.xsum * xmean - stat3D.xsum * xmean + xmean * xmean * stat3D.count) / float(stat3D.count);
+    A[0][1] = (stat3D.xysum - stat3D.ysum * xmean - stat3D.xsum * ymean + xmean * ymean * stat3D.count) / float(stat3D.count);
+    A[0][2] = (stat3D.xzsum - stat3D.zsum * xmean - stat3D.xsum * zmean + xmean * zmean * stat3D.count) / float(stat3D.count);
+    A[1][0] = (stat3D.xysum - stat3D.xsum * ymean - stat3D.ysum * xmean + ymean * xmean * stat3D.count) / float(stat3D.count);
+    A[1][1] = (stat3D.yysum - stat3D.ysum * ymean - stat3D.ysum * ymean + ymean * ymean * stat3D.count) / float(stat3D.count);
+    A[1][2] = (stat3D.yzsum - stat3D.zsum * ymean - stat3D.ysum * zmean + ymean * zmean * stat3D.count) / float(stat3D.count);
+    A[2][0] = (stat3D.xzsum - stat3D.xsum * zmean - stat3D.zsum * xmean + zmean * xmean * stat3D.count) / float(stat3D.count);
+    A[2][1] = (stat3D.yzsum - stat3D.ysum * zmean - stat3D.zsum * ymean + zmean * ymean * stat3D.count) / float(stat3D.count);
+    A[2][2] = (stat3D.zzsum - stat3D.zsum * zmean - stat3D.zsum * zmean + zmean * zmean * stat3D.count) / float(stat3D.count);
+
+    // should be sorted
+    eigen_decomposition(A, V[0], V[1], V[2], d);
+
+    v1 = vec3(float(V[0][2]), float(V[1][2]), float(V[2][2]));
+    v1 = normalize(v1);
+    v2 = vec3(float(V[0][1]), float(V[1][1]), float(V[2][1]));
+    v2 = normalize(v2);
+    v3 = vec3(float(V[0][0]), float(V[1][0]), float(V[2][0]));
+    v3 = normalize(v3);
+
+    cg.x = float(stat3D.xsum / stat3D.count);
+    cg.y = float(stat3D.ysum / stat3D.count);
+    cg.z = float(stat3D.zsum / stat3D.count);
+
+    d1 = float(d[2]);
+    d2 = float(d[1]);
+    d3 = float(d[0]);
+
+}
+
+bool Stat3D_computePlaneByPCA(inout Stat3D stat3D, inout vec3 p, inout vec3 n) {
+    if(stat3D.count < 3.0)
+    {
+        return false;
+    }
+
+    vec3 cg, v1, v2, v3;
+    float d1, d2, d3;
+    Stat3D_getEigenVectorsDesc(stat3D, cg, v1, v2, v3, d1, d2, d3);
+
+    p = cg;
+    n = v3;
+
+    return true;
+}
+
+#endif

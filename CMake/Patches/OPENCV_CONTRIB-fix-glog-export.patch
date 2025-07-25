@@ -1,0 +1,12 @@
+diff --git a/modules/sfm/src/libmv_light/libmv/logging/logging.h b/modules/sfm/src/libmv_light/libmv/logging/logging.h
+index fa091c0..6124d79 100644
+--- a/modules/sfm/src/libmv_light/libmv/logging/logging.h
++++ b/modules/sfm/src/libmv_light/libmv/logging/logging.h
+@@ -21,6 +21,7 @@
+ #ifndef LIBMV_LOGGING_LOGGING_H
+ #define LIBMV_LOGGING_LOGGING_H
+ 
++#include <glog/export.h>
+ #include <glog/logging.h>
+ 
+ 

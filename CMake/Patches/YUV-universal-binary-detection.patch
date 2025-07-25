@@ -1,0 +1,13 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c6cce8a..e5d5939 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -91,7 +91,7 @@ if(LOONGARCH64MATCH GREATER "-1")
+ endif()
+ 
+ if(NOT MSVC)
+-  string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" arch_lowercase)
++  string(TOLOWER "${CMAKE_OSX_ARCHITECTURES}" arch_lowercase)
+ 
+   if(arch_lowercase MATCHES "^arm" AND NOT arch_lowercase STREQUAL "arm64")
+     # Enable Arm Neon kernels.

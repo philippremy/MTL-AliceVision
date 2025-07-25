@@ -1,0 +1,114 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_ARB_gpu_shader_fp64 : require
+
+#include "definitions.comp"
+#include "DeviceCameraParams.comp"
+#include "ROI.comp"
+#include "Patch.comp"
+#include "Stat3D.comp"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// The output normal map
+// NOTE: THE ALPHA CHANNEL IS UNUSED! VULKAN DOES NOT SUPPORT RGB IMAGES!
+layout(rgba32f, set = 0, binding = 0) uniform image2D out_normalMap_d;
+
+// The input depth similiarity map
+layout(rg32f, set = 0, binding = 1) uniform readonly image2D in_depthSimMap_d;
+
+// Device Camera Params Array
+layout(set = 0, binding = 2, scalar) uniform DeviceCameraParamsConstant {
+    DeviceCameraParams cameraParams[ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS];
+} constantCameraParametersArray_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int TWsh;
+    int rcDeviceCameraParamsId;
+    int stepXY;
+    ROI roi;
+} pushConstants;
+
+float orientedPointPlaneDistanceNormalizedNormal(const vec3 point, const vec3 planePoint, const vec3 planeNormalNormalized) {
+    return (dot(point, planeNormalNormalized) - dot(planePoint, planeNormalNormalized));
+}
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi))
+        return;
+
+    const DeviceCameraParams rcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.rcDeviceCameraParamsId];
+
+    const uint x = (pushConstants.roi.x.begin + roiX) * uint(pushConstants.stepXY);
+    const uint y = (pushConstants.roi.y.begin + roiY) * uint(pushConstants.stepXY);
+
+    const float in_depth = imageLoad(in_depthSimMap_d, ivec2(roiX, roiY)).x;
+
+    // ALPHA CHANNEL (w) UNUSED!
+    vec4 out_normal = imageLoad(out_normalMap_d, ivec2(roiX, roiY));
+
+    // no depth
+    if(in_depth <= 0.0f)
+    {
+        imageStore(out_normalMap_d, ivec2(roiX, roiY), vec4(-1.f, -1.f, -1.f, -1.f));
+        return;
+    }
+
+    const vec3 p = get3DPointForPixelAndDepthFromRC(rcDeviceCamParams, vec2(float(x), float(y)), in_depth);
+    const float pixSize = length(p - get3DPointForPixelAndDepthFromRC(rcDeviceCamParams, vec2(float(x + 1), float(y)), in_depth));
+
+    Stat3D stat3D = Stat3D(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+    for(int yp = -pushConstants.TWsh; yp <= pushConstants.TWsh; ++yp)
+    {
+        const int roiYp = int(roiY) + yp;
+        if(roiYp < 0)
+            continue;
+
+        for(int xp = -pushConstants.TWsh; xp <= pushConstants.TWsh; ++xp)
+        {
+            const int roiXp = int(roiX) + xp;
+            if(roiXp < 0)
+                continue;
+
+            const float depthP = imageLoad(in_depthSimMap_d, ivec2(roiXp, roiYp)).x; // use only depth
+
+            if((depthP > 0.0f) && (abs(depthP - in_depth) < 30.0f * pixSize))
+            {
+                const float w = 1.0f;
+                const vec2 pixP = vec2(float(int(x) + xp), float(int(y) + yp));
+                const vec3 pP = get3DPointForPixelAndDepthFromRC(rcDeviceCamParams, pixP, depthP);
+                Stat3D_update(stat3D, pP, w);
+            }
+        }
+    }
+
+    vec3 pp = p;
+    vec3 nn = vec3(-1.f, -1.f, -1.f);
+
+    if(!Stat3D_computePlaneByPCA(stat3D, pp, nn))
+    {
+        imageStore(out_normalMap_d, ivec2(roiX, roiY), vec4(-1.f, -1.f, -1.f, -1.f));
+        return;
+    }
+
+    vec3 nc = rcDeviceCamParams.C - p;
+    nc = normalize(nc);
+
+    if(orientedPointPlaneDistanceNormalizedNormal(pp + nn, pp, nc) < 0.0f)
+    {
+        nn.x = -nn.x;
+        nn.y = -nn.y;
+        nn.z = -nn.z;
+    }
+
+    imageStore(out_normalMap_d, ivec2(roiX, roiY), vec4(nn, -1.f));
+
+}

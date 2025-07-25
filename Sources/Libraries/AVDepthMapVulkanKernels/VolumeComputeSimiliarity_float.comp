@@ -1,0 +1,173 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "definitions.comp"
+#include "DeviceCameraParams.comp"
+#include "Patch.comp"
+#include "ROI.comp"
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+// The 1st output volume
+layout(r32f, set = 0, binding = 0) uniform image3D out_volume1st_d;
+
+// The 2nd output volume
+layout(r32f, set = 0, binding = 1) uniform image3D out_volume2nd_d;
+
+// The input depths
+layout(r32f, set = 0, binding = 2) uniform readonly image2D in_depths_d;
+
+// The RC mipmapped image (sampled)
+layout(set = 0, binding = 3) uniform sampler2D rcDeviceMipmapImage;
+
+// The TC mipmapped image (sampled)
+layout(set = 0, binding = 4) uniform sampler2D tcDeviceMipmapImage;
+
+// Device Camera Params Array
+layout(set = 0, binding = 5, scalar) uniform DeviceCameraParamsConstant {
+    DeviceCameraParams cameraParams[ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS];
+} constantCameraParametersArray_d;
+
+// The Constant Device Patch Pattern
+layout(set = 0, binding = 6, scalar) uniform DevicePatchPatternConstant {
+    DevicePatchPattern patchPattern;
+} constantPatchPattern_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int rcDeviceCameraParamsId;
+    int tcDeviceCameraParamsId;
+    uint rcSgmLevelWidth;
+    uint rcSgmLevelHeight;
+    uint tcSgmLevelWidth;
+    uint tcSgmLevelHeight;
+    float rcMipmapLevel;
+    int stepXY;
+    int wsh;
+    float invGammaC;
+    float invGammaP;
+    bool useConsistentScale;
+    bool useCustomPatchPattern;
+    Range depthRange;
+    ROI roi;
+} pushConstants;
+
+void volume_computePatch(inout Patch pat,
+    const DeviceCameraParams rcDeviceCamParams,
+    const DeviceCameraParams tcDeviceCamParams,
+    const float fpPlaneDepth,
+    const vec2 pix)
+{
+    pat.p = get3DPointForPixelAndFrontoParellePlaneRC(rcDeviceCamParams, pix, fpPlaneDepth);
+    pat.d = computePixSize(rcDeviceCamParams, pat.p);
+    computeRotCSEpip(pat, rcDeviceCamParams, tcDeviceCamParams);
+}
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+    uint roiZ = gl_GlobalInvocationID.z;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi)) // no need to check roiZ
+        return;
+
+    // R and T camera parameters
+    const DeviceCameraParams rcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.rcDeviceCameraParamsId];
+    const DeviceCameraParams tcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.tcDeviceCameraParamsId];
+
+    // corresponding volume coordinates
+    const uint vx = roiX;
+    const uint vy = roiY;
+    const uint vz = pushConstants.depthRange.begin + roiZ;
+
+    // corresponding image coordinates
+    const float x = float(pushConstants.roi.x.begin + vx) * float(pushConstants.stepXY);
+    const float y = float(pushConstants.roi.y.begin + vy) * float(pushConstants.stepXY);
+
+    // corresponding depth plane
+    // NOTE: imageLoad always returns a vec4, but we only have one float stored. So only use x.
+    const float depthPlane = imageLoad(in_depths_d, ivec2(vz, 0)).x;
+
+    Patch pat = Patch(vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 0.0);
+    volume_computePatch(pat, rcDeviceCamParams, tcDeviceCamParams, depthPlane, vec2(x, y));
+
+    // we do not need positive and filtered similarity values
+    const bool invertAndFilter = false;
+
+    // SEE 4.7.1 Range and Precision in GLSL Reference (only guaranteed to work on GLSL <= 4.4)
+    // This yields an infinity bit pattern compliant with IEEE 754
+    float fsim = 1. / 0.;
+
+    if(pushConstants.useCustomPatchPattern) {
+        fsim = compNCCby3DptsYK_customPatchPattern(rcDeviceCamParams,
+            tcDeviceCamParams,
+            rcDeviceMipmapImage,
+            tcDeviceMipmapImage,
+            pushConstants.rcSgmLevelWidth,
+            pushConstants.rcSgmLevelHeight,
+            pushConstants.tcSgmLevelWidth,
+            pushConstants.tcSgmLevelHeight,
+            pushConstants.rcMipmapLevel,
+            pushConstants.invGammaC,
+            pushConstants.invGammaP,
+            pushConstants.useConsistentScale,
+            pat,
+            invertAndFilter,
+            constantPatchPattern_d.patchPattern);
+    } else {
+        fsim = compNCCby3DptsYK(rcDeviceCamParams,
+            tcDeviceCamParams,
+            rcDeviceMipmapImage,
+            tcDeviceMipmapImage,
+            pushConstants.rcSgmLevelWidth,
+            pushConstants.rcSgmLevelHeight,
+            pushConstants.tcSgmLevelWidth,
+            pushConstants.tcSgmLevelHeight,
+            pushConstants.rcMipmapLevel,
+            pushConstants.wsh,
+            pushConstants.invGammaC,
+            pushConstants.invGammaP,
+            pushConstants.useConsistentScale,
+            pat,
+            invertAndFilter);
+    }
+
+    if(isinf(fsim)) // invalid similarity
+    {
+        fsim = 255.0f; // 255 is the invalid similarity value
+    }
+    else // valid similarity
+    {
+        // remap similarity value
+        const float fminVal = -1.0f;
+        const float fmaxVal = 1.0f;
+        const float fmultiplier = 1.0f / (fmaxVal - fminVal);
+
+        fsim = (fsim - fminVal) * fmultiplier;
+
+        // no clamp
+
+        // convert from (0, 1) to (0, 254)
+        // needed to store in the volume in uchar
+        // 255 is reserved for the similarity initialization, i.e. undefined values
+        fsim *= 254.0f;
+    }
+
+    // Load output images
+    // NOTE: imageLoad always returns a vec4, but we only have one float stored. So only use x.
+    vec4 fsim_1st = imageLoad(out_volume1st_d, ivec3(vx, vy, vz));
+    vec4 fsim_2nd = imageLoad(out_volume2nd_d, ivec3(vx, vy, vz));
+
+    if(fsim < fsim_1st.x)
+    {
+        imageStore(out_volume2nd_d, ivec3(vx, vy, vz), vec4(fsim_1st.x, fsim_2nd.y, fsim_2nd.z, fsim_2nd.w));
+        imageStore(out_volume1st_d, ivec3(vx, vy, vz), vec4(fsim, fsim_1st.y, fsim_1st.z, fsim_1st.w));
+    }
+    else if(fsim < fsim_2nd.x)
+    {
+        imageStore(out_volume2nd_d, ivec3(vx, vy, vz), vec4(fsim, fsim_2nd.y, fsim_2nd.z, fsim_2nd.w));
+    }
+}

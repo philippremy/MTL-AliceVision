@@ -1,0 +1,35 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+// The input/output volume
+layout(r32f, set = 0, binding = 0) uniform image3D volume_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    ivec3 axisT;
+    ivec3 volDim;
+    int y;
+    float cst;
+} pushConstants;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint z = gl_GlobalInvocationID.y;
+
+    int temp[3];
+    temp[pushConstants.axisT.x] = int(x);
+    temp[pushConstants.axisT.y] = pushConstants.y;
+    temp[pushConstants.axisT.z] = int(z);
+
+    ivec3 v = ivec3(temp[0], temp[1], temp[2]);
+
+    if((x >= 0) && (x < pushConstants.volDim[pushConstants.axisT.x]) && (z >= 0) && (z < pushConstants.volDim[pushConstants.axisT.z])) {
+        vec4 volume_zyx = imageLoad(volume_d, v);
+        volume_zyx.x = pushConstants.cst;
+        imageStore(volume_d, v, volume_zyx);
+    }
+
+}

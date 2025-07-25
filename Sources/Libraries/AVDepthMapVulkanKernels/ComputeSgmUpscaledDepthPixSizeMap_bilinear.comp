@@ -1,0 +1,135 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "definitions.comp"
+#include "DeviceCameraParams.comp"
+#include "ROI.comp"
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// The upscaled output depth pixel size map
+layout(rg32f, set = 0, binding = 0) uniform image2D out_upscaledDepthPixSizeMap_d;
+
+// The input similiarity depth thickness map
+layout(rg32f, set = 0, binding = 1) uniform readonly image2D in_sgmDepthThicknessMap_d;
+
+// The input image
+layout(set = 0, binding = 2) uniform sampler2D rcMipmapImage_tex;
+
+// Device Camera Params Array
+layout(set = 0, binding = 3, scalar) uniform DeviceCameraParamsConstant {
+    DeviceCameraParams cameraParams[ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS];
+} constantCameraParametersArray_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int rcDeviceCameraParamsId;
+    uint rcLevelWidth;
+    uint rcLevelHeight;
+    float rcMipmapLevel;
+    int stepXY;
+    int halfNbDepths;
+    float ratio;
+    ROI roi;
+} pushConstants;
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi))
+        return;
+
+    // corresponding image coordinates
+    const uint x = (pushConstants.roi.x.begin + roiX) * uint(pushConstants.stepXY);
+    const uint y = (pushConstants.roi.y.begin + roiY) * uint(pushConstants.stepXY);
+
+    // corresponding output upscaled depth/pixSize map
+    vec4 out_depthPixSize = imageLoad(out_upscaledDepthPixSizeMap_d, ivec2(roiX, roiY));
+
+    // filter masked pixels with alpha
+    if(textureLod(rcMipmapImage_tex, ivec2((float(x) + 0.5f) / float(pushConstants.rcLevelWidth), (float(y) + 0.5f) / float(pushConstants.rcLevelHeight)), pushConstants.rcMipmapLevel).w < ALICEVISION_DEPTHMAP_RC_MIN_ALPHA)
+    {
+        imageStore(out_upscaledDepthPixSizeMap_d, ivec2(roiX, roiY), vec4(-2.f, 0.f, out_depthPixSize.z, out_depthPixSize.w));
+        return;
+    }
+
+    // find adjacent pixels
+    const float oy = (float(roiY) - 0.5f) * pushConstants.ratio;
+    const float ox = (float(roiX) - 0.5f) * pushConstants.ratio;
+
+    int xp = int(floor(ox));
+    int yp = int(floor(oy));
+
+    xp = min(xp, int(ROI_width(pushConstants.roi)  * pushConstants.ratio) - 2);
+    yp = min(yp, int(ROI_height(pushConstants.roi) * pushConstants.ratio) - 2);
+
+    const vec2 lu = imageLoad(in_sgmDepthThicknessMap_d, ivec2(xp, yp)).xy;
+    const vec2 ru = imageLoad(in_sgmDepthThicknessMap_d, ivec2(xp + 1, yp)).xy;
+    const vec2 rd = imageLoad(in_sgmDepthThicknessMap_d, ivec2(xp + 1, yp + 1)).xy;
+    const vec2 ld = imageLoad(in_sgmDepthThicknessMap_d, ivec2(xp, yp + 1)).xy;
+
+    // find corresponding depth/thickness
+    vec2 out_depthThickness = vec2(0.0, 0.0);
+
+    if(lu.x <= 0.0f || ru.x <= 0.0f || rd.x <= 0.0f || ld.x <= 0.0f)
+    {
+        // at least one corner depth is invalid
+        // average the other corners to get a proper depth/thickness
+        vec2 sumDepthThickness = vec2(0.0f, 0.0f);
+        int count = 0;
+
+        if(lu.x > 0.0f)
+        {
+            sumDepthThickness = sumDepthThickness + lu;
+            ++count;
+        }
+        if(ru.x > 0.0f)
+        {
+            sumDepthThickness = sumDepthThickness + ru;
+            ++count;
+        }
+        if(rd.x > 0.0f)
+        {
+            sumDepthThickness = sumDepthThickness + rd;
+            ++count;
+        }
+        if(ld.x > 0.0f)
+        {
+            sumDepthThickness = sumDepthThickness + ld;
+            ++count;
+        }
+        if(count != 0)
+        {
+            out_depthThickness = vec2(sumDepthThickness.x / float(count), sumDepthThickness.y / float(count));
+        }
+        else
+        {
+            // invalid depth
+            imageStore(out_upscaledDepthPixSizeMap_d, ivec2(roiX, roiY), vec4(-1.0f, -1.0f, out_depthPixSize.z, out_depthPixSize.w));
+            return;
+        }
+    }
+    else
+    {
+        // bilinear interpolation
+        const float ui = ox - float(xp);
+        const float vi = oy - float(yp);
+        const vec2 u = lu + (ru - lu) * ui;
+        const vec2 d = ld + (rd - ld) * ui;
+        out_depthThickness = u + (d - u) * vi;
+    }
+
+    // compute pixSize from depth thickness
+    const float out_pixSize = out_depthThickness.y / pushConstants.halfNbDepths;
+
+    // write output depth/pixSize
+    out_depthPixSize.x = out_depthThickness.x;
+    out_depthPixSize.y = out_pixSize;
+
+    imageStore(out_upscaledDepthPixSizeMap_d, ivec2(roiX, roiY), out_depthPixSize);
+
+}

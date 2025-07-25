@@ -1,0 +1,33 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+
+#include "color_float.comp"
+
+// The input/output image to perform color conversion on
+layout(rgba8ui, set = 0, binding = 0) uniform uimage2D inout_img_dmp;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    // Get the image width/height
+    ivec2 outImageSize = imageSize(inout_img_dmp);
+
+    if((x >= outImageSize.x) || (y >= outImageSize.y))
+        return;
+
+    uvec4 rgba = imageLoad(inout_img_dmp, ivec2(x, y));
+
+    const float d = float(1.0 / 255.0);
+
+    vec3 flab = xyz2lab(rgb2xyz(vec3(float(rgba.x) * d, float(rgba.y) * d, float(rgba.z) * d)));
+
+    imageStore(inout_img_dmp, ivec2(x, y), uvec4(clamp(flab, 0.0, 255.0), rgba.w));
+
+}

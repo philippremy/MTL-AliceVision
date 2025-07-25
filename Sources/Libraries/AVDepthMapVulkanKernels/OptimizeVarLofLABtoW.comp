@@ -1,0 +1,56 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "ROI.comp"
+
+layout(local_size_x = 32, local_size_y = 2, local_size_z = 1) in;
+
+// The output variance map
+layout(r32f, set = 0, binding = 0) uniform image2D out_varianceMap_d;
+
+// The input image
+layout(set = 0, binding = 1) uniform sampler2D rcMipmapImage_tex;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    uint rcLevelWidth;
+    uint rcLevelHeight;
+    float rcMipmapLevel;
+    int stepXY;
+    ROI roi;
+} pushConstants;
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi))
+        return;
+
+    // corresponding image coordinates
+    const float x = float(pushConstants.roi.x.begin + roiX) * float(pushConstants.stepXY);
+    const float y = float(pushConstants.roi.y.begin + roiY) * float(pushConstants.stepXY);
+
+    // compute inverse width / height
+    // note: useful to compute p1 / m1 normalized coordinates
+    const float invLevelWidth  = 1.f / float(pushConstants.rcLevelWidth);
+    const float invLevelHeight = 1.f / float(pushConstants.rcLevelHeight);
+
+    // compute gradient size of L
+    // note: we use 0.5f offset because rcTex texture use interpolation
+    const float xM1 = textureLod(rcMipmapImage_tex, vec2(((x - 1.f) + 0.5f) * invLevelWidth, ((y + 0.f) + 0.5f) * invLevelHeight), pushConstants.rcMipmapLevel).x;
+    const float xP1 = textureLod(rcMipmapImage_tex, vec2(((x + 1.f) + 0.5f) * invLevelWidth, ((y + 0.f) + 0.5f) * invLevelHeight), pushConstants.rcMipmapLevel).x;
+    const float yM1 = textureLod(rcMipmapImage_tex, vec2(((x + 0.f) + 0.5f) * invLevelWidth, ((y - 1.f) + 0.5f) * invLevelHeight), pushConstants.rcMipmapLevel).x;
+    const float yP1 = textureLod(rcMipmapImage_tex, vec2(((x + 0.f) + 0.5f) * invLevelWidth, ((y + 1.f) + 0.5f) * invLevelHeight), pushConstants.rcMipmapLevel).x;
+
+    const vec2 g = vec2(xM1 - xP1, yM1 - yP1); // TODO: not divided by 2?
+    const float grad = length(g);
+
+    // write output
+    vec4 outp = imageLoad(out_varianceMap_d, ivec2(roiX, roiY));
+    outp.x = grad;
+    imageStore(out_varianceMap_d, ivec2(roiX, roiY), outp);
+}

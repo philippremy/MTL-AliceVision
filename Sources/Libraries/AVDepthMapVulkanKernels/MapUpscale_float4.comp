@@ -1,0 +1,39 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "ROI.comp"
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// The upscaled output map
+layout(rgba32f, set = 0, binding = 0) uniform image2D out_upscaledMap_d;
+
+// The input map
+layout(rgba32f, set = 0, binding = 1) uniform readonly image2D in_map_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    float ratio;
+    ROI roi;
+} pushConstants;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    if(x >= ROI_width(pushConstants.roi) || y >= ROI_height(pushConstants.roi))
+        return;
+
+    const float ox = (float(x) - 0.5f) * pushConstants.ratio;
+    const float oy = (float(y) - 0.5f) * pushConstants.ratio;
+
+    // nearest neighbor, no interpolation
+    const int xp = min(int(floor(ox + 0.5)), int(ROI_width(pushConstants.roi)  * pushConstants.ratio) - 1);
+    const int yp = min(int(floor(oy + 0.5)), int(ROI_height(pushConstants.roi) * pushConstants.ratio) - 1);
+
+    imageStore(out_upscaledMap_d, ivec2(x, y), imageLoad(in_map_d, ivec2(xp, yp)));
+
+}

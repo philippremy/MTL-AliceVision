@@ -1,0 +1,65 @@
+#pragma once
+
+/// Function used to safely check defines
+#define ALICEVISION_IS_DEFINED(F) F() == 1
+#define ALICEVISION_IS_NOT_DEFINED(F) F() != 1
+
+/// Whether SSE instructions can be used
+#define ALICEVISION_HAVE_SSE() @ALICEVISION_HAVE_SSE@
+
+/// Whether the OpenMP runtime can be used
+#define ALICEVISION_HAVE_OPENMP() @ALICEVISION_HAVE_OPENMP@
+
+/// Whether OpenCV functions can be used
+#define ALICEVISION_HAVE_OPENCV() @ALICEVISION_HAVE_OPENCV@
+
+/// Whether to use Eigen3 Memory Alignment
+#define ALICEVISION_EIGEN_REQUIRE_ALIGNMENT() @ALICEVISION_EIGEN_REQUIRE_ALIGNMENT@
+
+/// Whether CUDA is available
+#define ALICEVISION_HAVE_CUDA() @ALICEVISION_HAVE_CUDA@
+
+/// Whether Vulkan is available
+#define ALICEVISION_HAVE_VULKAN() @ALICEVISION_HAVE_VULKAN@
+
+/// Whether Metal is available
+#define ALICEVISION_HAVE_METAL() @ALICEVISION_HAVE_METAL@
+
+/// Whether ONNXRuntime is GPU accelerated (CUDA)
+#define ALICEVISION_HAVE_ONNX_GPU() @ALICEVISION_HAVE_ONNX_GPU@
+
+/// Whether MOSEK linear programming functions can be used
+#define ALICEVISION_HAVE_MOSEK() 0
+
+/// Whether OpenCV is available
+#define ALICEVISION_HAVE_OPENCV() @ALICEVISION_HAVE_OPENCV@
+
+/// Whether OpenCV SIFT functions should be used
+#define ALICEVISION_HAVE_OCVSIFT() @ALICEVISION_HAVE_OCVSIFT@
+
+/// Whether CCTag functions should be used
+#define ALICEVISION_HAVE_CCTAG() @ALICEVISION_HAVE_CCTAG@
+
+/// Whether AprilTag functions should be used
+#define ALICEVISION_HAVE_APRILTAG() @ALICEVISION_HAVE_APRILTAG@
+
+/// Whether Popsift functions should be used
+#define ALICEVISION_HAVE_POPSIFT() @ALICEVISION_HAVE_POPSIFT@
+
+/// Whether Alembic functions can be used
+#define ALICEVISION_HAVE_ALEMBIC() @ALICEVISION_HAVE_ALEMBIC@
+
+/// Whether LiDAR (E57Format) functions can be used
+#define ALICEVISION_HAVE_LIDAR() 1
+
+/// Whether OpenGV functions can be used
+#define ALICEVISION_HAVE_OPENGV() @ALICEVISION_HAVE_OPENGV@
+
+/// Whether Vulkan Validation Layers should be enabled
+#define ALICEVISION_USE_VULKAN_VALIDATION() @ALICEVISION_USE_VULKAN_VALIDATION@
+
+/// If ALICEVISION_EIGEN_REQUIRE_ALIGNMENT is not defined, set some standard variables
+#if ALICEVISION_IS_NOT_DEFINED(ALICEVISION_EIGEN_REQUIRE_ALIGNMENT)
+    #define EIGEN_MAX_ALIGN_BYTES @EIGEN_MAX_ALIGN_BYTES@
+    #define EIGEN_MAX_STATIC_ALIGN_BYTES @EIGEN_MAX_STATIC_ALIGN_BYTES@
+#endif

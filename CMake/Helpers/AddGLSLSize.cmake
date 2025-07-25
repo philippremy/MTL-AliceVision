@@ -1,0 +1,7 @@
+file(TO_CMAKE_PATH "${HEADER}" HEADER_NORM)
+
+file(READ "${HEADER}" HEADER_READ)
+string(PREPEND HEADER_READ "#define EXPORT_MODULE extern")
+string(REPLACE "const" "EXPORT_MODULE const" HEADER_READ "${HEADER_READ}")
+string(APPEND HEADER_READ "\nEXPORT_MODULE constexpr size_t ${MODULE_NAME}_SIZE = sizeof(${MODULE_NAME});\n")
+file(WRITE "${HEADER}" "${HEADER_READ}")

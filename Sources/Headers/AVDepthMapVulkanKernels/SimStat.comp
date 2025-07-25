@@ -1,0 +1,74 @@
+#ifndef SIMSTAT
+#define SIMSTAT
+
+struct SimStat
+{
+    float xsum;
+    float ysum;
+    float xxsum;
+    float yysum;
+    float xysum;
+    float count;
+    float wsum;
+};
+
+/**
+* @brief Variance of X
+* formula: sum(w*x*x) / sum(w) - sum(w*x)^2 / sum(w)^2
+*/
+float SimStat_getVarianceXW(inout SimStat sst)
+{
+    return (sst.xxsum - sst.xsum * sst.xsum / sst.wsum) / sst.wsum;
+}
+
+/**
+* @brief Variance of Y
+* formula: sum(w*y*y) / sum(w) - sum(w*y)^2 / sum(w)^2
+*/
+float SimStat_getVarianceYW(inout SimStat sst)
+{
+    return (sst.yysum - sst.ysum * sst.ysum / sst.wsum) / sst.wsum;
+}
+
+/**
+ * @brief Cross-Correlation between X and Y
+ * Formula is: sum(w*x*y) - 2 * sum(w*x)*sum(w*y) / sum(w) + sum(w*x*y)
+ * Simplified as: sum(w*x*y) / sum(w) - sum(w*y) * sum(w*x) / sum(w)^2
+ */
+float SimStat_getVarianceXYW(inout SimStat sst)
+{
+    return (sst.xysum - sst.xsum * sst.ysum / sst.wsum) / sst.wsum;
+}
+
+/**
+ * @brief Compute Normalized Cross-Correlation.
+ * @return similarity value in range (-1, 0) or 1 if infinity
+ */
+float SimStat_computeWSim(inout SimStat sst)
+{
+    // NCC
+
+    // without optimization
+    // const float rawSim = getVarianceXYW() / sqrtf(getVarianceXW() * getVarianceYW());
+    const float rawSim = SimStat_getVarianceXYW(sst) / sqrt(SimStat_getVarianceXW(sst) * SimStat_getVarianceYW(sst));
+
+    if(rawSim == 1. / 0.) {
+        return -rawSim;
+    } else {
+        return 1.0f;
+    }
+}
+
+void SimStat_update(inout SimStat sst, const float gx, const float gy, float w) {
+
+    sst.wsum += w;
+    sst.count += 1.0f;
+    sst.xsum += w * gx;
+    sst.ysum += w * gy;
+    sst.xxsum += w * gx * gx;
+    sst.yysum += w * gy * gy;
+    sst.xysum += w * gx * gy;
+
+}
+
+#endif

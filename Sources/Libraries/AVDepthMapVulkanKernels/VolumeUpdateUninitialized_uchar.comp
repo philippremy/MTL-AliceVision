@@ -1,0 +1,37 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+// The 2nd input/output volume
+layout(r8ui, set = 0, binding = 0) uniform uimage3D inout_volume2nd_d;
+
+// The 1st input volume
+layout(r8ui, set = 0, binding = 1) uniform readonly uimage3D in_volume1st_d;
+
+void main() {
+
+    uint vx = gl_GlobalInvocationID.x;
+    uint vy = gl_GlobalInvocationID.y;
+    uint vz = gl_GlobalInvocationID.z;
+
+    // Get Size of inout volume
+    ivec3 volumeSize = imageSize(inout_volume2nd_d);
+
+    if(vx >= volumeSize.x || vy >= volumeSize.y)
+        return;
+
+    // input/output second best similarity value
+    // NOTE: imageLoad() always returns a vec4, but format is r32f. So only use x!
+    uvec4 inout_sim = imageLoad(inout_volume2nd_d, ivec3(vx, vy, vz));
+
+    if(inout_sim.x >= 255.f) // invalid or uninitialized similarity value
+    {
+        // update second best similarity value with first best similarity value
+        uint in_sim = imageLoad(in_volume1st_d, ivec3(vx, vy, vz)).x;
+        imageStore(inout_volume2nd_d, ivec3(vx, vy, vz), uvec4(in_sim, inout_sim.y, inout_sim.z, inout_sim.w));
+    }
+
+}

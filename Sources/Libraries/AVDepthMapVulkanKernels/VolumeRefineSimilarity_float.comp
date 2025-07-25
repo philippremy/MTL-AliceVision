@@ -1,0 +1,200 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+
+#include "definitions.comp"
+#include "DeviceCameraParams.comp"
+#include "Patch.comp"
+#include "ROI.comp"
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+// The input/output similarity volume
+layout(r32f, set = 0, binding = 0) uniform image3D inout_volSim_d;
+
+// The input sgm depth pixel size map
+layout(rg32f, set = 0, binding = 1) uniform readonly image2D in_sgmDepthPixSizeMap_d;
+
+// The input normal map
+// NOTE: Uses vec4, but only stores a vec3!
+layout(rgba32f, set = 0, binding = 2) uniform readonly image2D in_sgmNormalMap_d;
+
+// The rc input image
+layout(set = 0, binding = 3) uniform sampler2D rcMipmapImage_tex;
+
+// The tc input image
+layout(set = 0, binding = 4) uniform sampler2D tcMipmapImage_tex;
+
+// Device Camera Params Array
+layout(set = 0, binding = 5, scalar) uniform DeviceCameraParamsConstant {
+    DeviceCameraParams cameraParams[ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS];
+} constantCameraParametersArray_d;
+
+// The Constant Device Patch Pattern
+layout(set = 0, binding = 6, scalar) uniform DevicePatchPatternConstant {
+    DevicePatchPattern patchPattern;
+} constantPatchPattern_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int rcDeviceCameraParamsId;
+    int tcDeviceCameraParamsId;
+    uint rcRefineLevelWidth;
+    uint rcRefineLevelHeight;
+    uint tcRefineLevelWidth;
+    uint tcRefineLevelHeight;
+    float rcMipmapLevel;
+    int volDimZ;
+    int stepXY;
+    int wsh;
+    float invGammaC;
+    float invGammaP;
+    bool useConsistentScale;
+    bool useCustomPatchPattern;
+    bool useNormalMap;
+    Range depthRange;
+    ROI roi;
+} pushConstants;
+
+void move3DPointByRcPixSize(inout vec3 p,
+    const DeviceCameraParams rcDeviceCamParams,
+    const float rcPixSize)
+{
+    vec3 rpv = p - rcDeviceCamParams.C;
+    rpv = normalize(rpv);
+    p = p + rpv * rcPixSize;
+}
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+    uint roiZ = gl_WorkGroupID.z;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi)) // no need to check roiZ
+        return;
+
+    // R and T camera parameters
+    const DeviceCameraParams rcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.rcDeviceCameraParamsId];
+    const DeviceCameraParams tcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.tcDeviceCameraParamsId];
+
+    // corresponding volume and depth/sim map coordinates
+    const uint vx = roiX;
+    const uint vy = roiY;
+    const uint vz = pushConstants.depthRange.begin + roiZ;
+
+    // corresponding image coordinates
+    const float x = float(pushConstants.roi.x.begin + vx) * float(pushConstants.stepXY);
+    const float y = float(pushConstants.roi.y.begin + vy) * float(pushConstants.stepXY);
+
+    // corresponding input sgm depth/pixSize (middle depth)
+    const vec2 in_sgmDepthPixSize = imageLoad(in_sgmDepthPixSizeMap_d, ivec2(vx, vy)).xy;
+
+    // sgm depth (middle depth) invalid or masked
+    if(in_sgmDepthPixSize.x <= 0.0f)
+        return;
+
+    // initialize rc 3d point at sgm depth (middle depth)
+    vec3 p = get3DPointForPixelAndDepthFromRC(rcDeviceCamParams, vec2(x, y), in_sgmDepthPixSize.x);
+
+    // compute relative depth index offset from z center
+    const int relativeDepthIndexOffset = int(vz) - ((pushConstants.volDimZ - 1) / 2);
+
+    if(relativeDepthIndexOffset != 0)
+    {
+        // not z center
+        // move rc 3d point by relative depth index offset * sgm pixSize
+        const float pixSizeOffset = relativeDepthIndexOffset * in_sgmDepthPixSize.y; // input sgm pixSize
+        move3DPointByRcPixSize(p, rcDeviceCamParams, pixSizeOffset);
+    }
+
+    // compute patch
+    Patch pat = Patch(vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), 0.0);
+    pat.p = p;
+    pat.d = computePixSize(rcDeviceCamParams, p);
+
+    // computeRotCSEpip
+    {
+        // vector from the reference camera to the 3d point
+        vec3 v1 = rcDeviceCamParams.C - pat.p;
+        // vector from the target camera to the 3d point
+        vec3 v2 = tcDeviceCamParams.C - pat.p;
+        v1 = normalize(v1);
+        v2 = normalize(v2);
+
+        // y has to be orthogonal to the epipolar plane
+        // n has to be on the epipolar plane
+        // x has to be on the epipolar plane
+
+        pat.y = cross(v1, v2);
+        pat.y = normalize(pat.y);
+
+        if(pushConstants.useNormalMap) // initialize patch normal from input normal map
+        {
+            pat.n =imageLoad(in_sgmNormalMap_d, ivec2(vx, vy)).xyz;
+        } else // initialize patch normal from v1 & v2
+        {
+            pat.n = (v1 + v2) / 2.0f;
+            pat.n = normalize(pat.n);
+        }
+
+        pat.x = cross(pat.y, pat.n);
+        pat.x = normalize(pat.x);
+    }
+
+    const bool invertAndFilter = true;
+
+    // SEE 4.7.1 Range and Precision in GLSL Reference (only guaranteed to work on GLSL <= 4.4)
+    // This yields an infinity bit pattern compliant with IEEE 754
+    float fsimInvertedFiltered = 1. / 0.;
+
+    if(pushConstants.useCustomPatchPattern) {
+        fsimInvertedFiltered = compNCCby3DptsYK_customPatchPattern(rcDeviceCamParams,
+                                                                   tcDeviceCamParams,
+                                                                   rcMipmapImage_tex,
+                                                                   tcMipmapImage_tex,
+                                                                   pushConstants.rcRefineLevelWidth,
+                                                                   pushConstants.rcRefineLevelHeight,
+                                                                   pushConstants.tcRefineLevelWidth,
+                                                                   pushConstants.tcRefineLevelHeight,
+                                                                   pushConstants.rcMipmapLevel,
+                                                                   pushConstants.invGammaC,
+                                                                   pushConstants.invGammaP,
+                                                                   pushConstants.useConsistentScale,
+                                                                   pat,
+                                                                   invertAndFilter,
+                                                                   constantPatchPattern_d.patchPattern);
+    } else {
+        fsimInvertedFiltered = compNCCby3DptsYK(rcDeviceCamParams,
+                                                tcDeviceCamParams,
+                                                rcMipmapImage_tex,
+                                                tcMipmapImage_tex,
+                                                pushConstants.rcRefineLevelWidth,
+                                                pushConstants.rcRefineLevelHeight,
+                                                pushConstants.tcRefineLevelWidth,
+                                                pushConstants.tcRefineLevelHeight,
+                                                pushConstants.rcMipmapLevel,
+                                                pushConstants.wsh,
+                                                pushConstants.invGammaC,
+                                                pushConstants.invGammaP,
+                                                pushConstants.useConsistentScale,
+                                                pat,
+                                                invertAndFilter);
+    }
+
+    if(isinf(fsimInvertedFiltered)) // invalid similarity
+    {
+        // do nothing
+        return;
+    }
+
+    // NOTE: Always yields a vec4, but only one value (x) is used
+    vec4 outSimPtr = imageLoad(inout_volSim_d, ivec3(vx, vy, vz));
+    outSimPtr.x = outSimPtr.x + fsimInvertedFiltered;
+    imageStore(inout_volSim_d, ivec3(vx, vy, vz), outSimPtr);
+
+}

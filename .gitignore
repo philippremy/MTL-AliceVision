@@ -1,3 +1,17 @@
+# Ignore Apple System Files
+.DS_Store
+*/.DS_Store
+**/.DS_Store
+
+# Ignore IDE Files
+.idea
+.vscode
+.zed
+
+# Ignore build folders
+build
+Build
+
 # Prerequisites
 *.d
 
@@ -36,6 +50,10 @@
 *.exe
 *.out
 *.app
+*.bundle
+*.framework
 
 # debug information files
 *.dwo
+*.dwarf
+*.dSYM

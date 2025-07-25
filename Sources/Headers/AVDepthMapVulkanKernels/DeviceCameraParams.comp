@@ -1,0 +1,18 @@
+#ifndef DEVICECAMERAPARAMS
+#define DEVICECAMERAPARAMS
+
+struct DeviceCameraParams
+{
+    float P[12];
+    float iP[9];
+    float R[9];
+    float iR[9];
+    float K[9];
+    float iK[9];
+    vec3 C;
+    vec3 XVect;
+    vec3 YVect;
+    vec3 ZVect;
+};
+
+#endif

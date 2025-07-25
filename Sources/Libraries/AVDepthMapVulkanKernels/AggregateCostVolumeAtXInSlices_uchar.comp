@@ -1,0 +1,115 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "color.comp"
+#include "Matrix.comp"
+#include "ROI.comp"
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+// The input image
+layout(set = 0, binding = 0) uniform sampler2D rcMipmapImage_tex;
+
+// The input/output slice for Y
+layout(r32ui, set = 0, binding = 1) uniform uimage2D xzSliceForY_d;
+
+// The input slice for Ym1
+layout(r32ui, set = 0, binding = 2) uniform readonly uimage2D xzSliceForYm1_d;
+
+// The input slice for best similiarity in Ym1
+layout(r32ui, set = 0, binding = 3) uniform readonly uimage2D bestSimInYm1_d;
+
+// The input/output volume
+layout(r8ui, set = 0, binding = 4) uniform uimage3D volAgr_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    uint rcSgmLevelWidth;
+    uint rcSgmLevelHeight;
+    float rcMipmapLevel;
+    ivec3 volDim;
+    ivec3 axisT;
+    float step;
+    int y;
+    float P1;
+    float _P2;
+    int ySign;
+    int filteringIndex;
+    ROI roi;
+} pushConstants;
+
+float multi_fminf(float a, float b, float c, float d)
+{
+    return min(min(min(a, b), c), d);
+}
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint z = gl_GlobalInvocationID.y;
+
+    int temp[3];
+    temp[pushConstants.axisT.x] = int(x);
+    temp[pushConstants.axisT.y] = pushConstants.y;
+    temp[pushConstants.axisT.z] = int(z);
+
+    ivec3 v = ivec3(temp[0], temp[1], temp[2]);
+
+    if (int(x) >= pushConstants.volDim[pushConstants.axisT.x] || int(z) >= pushConstants.volDim.z)
+        return;
+
+    // find texture offset
+    const int beginX = (pushConstants.axisT.x == 0) ? int(pushConstants.roi.x.begin) : int(pushConstants.roi.y.begin);
+    const int beginY = (pushConstants.axisT.x == 0) ? int(pushConstants.roi.y.begin) : int(pushConstants.roi.x.begin);
+
+    uvec4 sim_xz = imageLoad(xzSliceForY_d, ivec2(x, z));
+    float pathCost = 255.0f;
+
+    if((z >= 1) && (z < pushConstants.volDim.z - 1)) {
+
+        float P2 = 0;
+
+        if(pushConstants._P2 < 0) {
+            P2 = abs(pushConstants._P2);
+        } else {
+            const int imX0 = (beginX + v.x) * int(pushConstants.step); // current
+            const int imY0 = (beginY + v.y) * int(pushConstants.step);
+
+            const int imX1 = imX0 - pushConstants.ySign * int(pushConstants.step) * int(pushConstants.axisT.y == 0); // M1
+            const int imY1 = imY0 - pushConstants.ySign * int(pushConstants.step) * int(pushConstants.axisT.y == 1);
+
+            const vec4 gcr0 = textureLod(rcMipmapImage_tex, vec2((float(imX0) + 0.5f) / float(pushConstants.rcSgmLevelWidth), (float(imY0) + 0.5f) / float(pushConstants.rcSgmLevelHeight)), pushConstants.rcMipmapLevel);
+            const vec4 gcr1 = textureLod(rcMipmapImage_tex, vec2((float(imX1) + 0.5f) / float(pushConstants.rcSgmLevelWidth), (float(imY1) + 0.5f) / float(pushConstants.rcSgmLevelHeight)), pushConstants.rcMipmapLevel);
+            const float deltaC = euclideanDist3(gcr0, gcr1);
+
+            // sigmoid f(x) = i + (a - i) * (1 / ( 1 + e^(10 * (x - P2) / w)))
+            // see: https://www.desmos.com/calculator/1qvampwbyx
+            // best values found from tests: i = 80, a = 255, w = 80, P2 = 100
+            // historical values: i = 15, a = 255, w = 80, P2 = 20
+            P2 = sigmoid(80.f, 255.f, 80.f, pushConstants._P2, deltaC);
+        }
+
+        const uint bestCostInColM1 = imageLoad(bestSimInYm1_d, ivec2(x, 0)).x;
+        const uint pathCostMDM1 = imageLoad(xzSliceForYm1_d, ivec2(x, z - 1)).x;
+        const uint pathCostMD = imageLoad(xzSliceForYm1_d, ivec2(x, z)).x;
+        const uint pathCostMDP1 = imageLoad(xzSliceForYm1_d, ivec2(x, z + 1)).x;
+        const float minCost = multi_fminf(pathCostMD, pathCostMDM1 + pushConstants.P1, pathCostMDP1 + pushConstants.P1, bestCostInColM1 + P2);
+
+        // if 'pathCostMD' is the minimal value of the depth
+        pathCost = sim_xz.x + minCost - bestCostInColM1;
+    }
+
+    sim_xz.x = int(pathCost);
+    imageStore(xzSliceForY_d, ivec2(x, z), sim_xz);
+
+    // Clamp
+    pathCost = int(min(255.0f, max(0.0f, pathCost)));
+
+    // NOTE: imageLoad always returns a vec4, but we only store one value, so only use x!
+    uvec4 volume_xyz = imageLoad(volAgr_d, v);
+    const float val = (float(volume_xyz.x) * float(pushConstants.filteringIndex) + pathCost) / float(pushConstants.filteringIndex + 1);
+    imageStore(volAgr_d, v, uvec4(val, volume_xyz.y, volume_xyz.z, volume_xyz.w));
+
+}

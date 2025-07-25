@@ -1,0 +1,8 @@
+macro(alicevision_print_dep)
+    string(ASCII 27 Esc)
+    if(${ARGV1})
+        message("│ ✅ ${ARGV0}${Esc}[50G│")
+    else()
+        message("│ ❌ ${ARGV0}${Esc}[50G│")
+    endif()
+endmacro()

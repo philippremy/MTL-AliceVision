@@ -1,0 +1,960 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9660f55..cfd4916 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -30,13 +30,15 @@ IF(MSVC)
+   add_compile_options(/wd4514 /wd4267 /bigobj)
+   add_definitions(-D_USE_MATH_DEFINES)
+ ELSE()
+-  IF (CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64)|(ARM64)|(aarch64)|(AARCH64)")
+-    add_definitions (-march=armv8-a)
+-  ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES 
+-          "(arm)|(ARM)|(armhf)|(ARMHF)|(armel)|(ARMEL)")
+-    add_definitions (-march=armv7-a)
+-  ELSE ()
+-    add_definitions (-march=native) #TODO use correct c++11 def once everybody has moved to gcc 4.7 # for now I even removed std=gnu++0x
++  IF(NOT APPLE OR (NOT "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64;x86_64" AND NOT "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "x86_64;arm64"))
++    IF (CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64)|(ARM64)|(aarch64)|(AARCH64)")
++        add_definitions (-march=armv8-a)
++    ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES
++            "(arm)|(ARM)|(armhf)|(ARMHF)|(armel)|(ARMEL)")
++        add_definitions (-march=armv7-a)
++    ELSE ()
++        add_definitions (-march=native) #TODO use correct c++11 def once everybody has moved to gcc 4.7 # for now I even removed std=gnu++0x
++    ENDIF()
+   ENDIF()
+   add_definitions (
+     -O3
+@@ -181,11 +183,11 @@ add_library( random_generators test/random_generators.cpp test/random_generators
+ set_target_properties( opengv random_generators PROPERTIES
+                     SOVERSION ${PROJECT_VERSION}
+                     VERSION ${PROJECT_VERSION}
+-                    CXX_STANDARD 11
++                    CXX_STANDARD 20
+                     CXX_STANDARD_REQUIRED ON
+                     DEBUG_POSTFIX d )
+ 
+-target_include_directories( opengv PUBLIC 
++target_include_directories( opengv PUBLIC
+                 # only when building from the source tree
+                 $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                 # only when using the lib from the install path
+@@ -329,7 +331,7 @@ IF (BUILD_TESTS)
+     test_Sturm
+ 
+     PROPERTIES
+-    CXX_STANDARD 11
++    CXX_STANDARD 20
+     CXX_STANDARD_REQUIRED ON
+     DEBUG_POSTFIX d )
+ 
+@@ -384,8 +386,8 @@ install(EXPORT "${targets_export_name}"
+         DESTINATION "${config_install_dir}")
+ 
+ # Headers
+-install(DIRECTORY include/ 
+-        DESTINATION ${include_install_dir} 
++install(DIRECTORY include/
++        DESTINATION ${include_install_dir}
+         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+ 
+ 
+diff --git a/src/absolute_pose/CentralAbsoluteAdapter.cpp b/src/absolute_pose/CentralAbsoluteAdapter.cpp
+index 684fa7e..ddaf4bf 100644
+--- a/src/absolute_pose/CentralAbsoluteAdapter.cpp
++++ b/src/absolute_pose/CentralAbsoluteAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/absolute_pose/CentralAbsoluteAdapter.hpp>
+ 
++#include <cassert>
++
+ 
+ opengv::absolute_pose::CentralAbsoluteAdapter::CentralAbsoluteAdapter(
+     const bearingVectors_t & bearingVectors,
+diff --git a/src/absolute_pose/MACentralAbsolute.cpp b/src/absolute_pose/MACentralAbsolute.cpp
+index 6edbabc..7298448 100644
+--- a/src/absolute_pose/MACentralAbsolute.cpp
++++ b/src/absolute_pose/MACentralAbsolute.cpp
+@@ -31,6 +31,7 @@
+ 
+ #include <opengv/absolute_pose/MACentralAbsolute.hpp>
+ 
++#include <cassert>
+ 
+ opengv::absolute_pose::MACentralAbsolute::MACentralAbsolute(
+     const double * points,
+diff --git a/src/absolute_pose/MANoncentralAbsolute.cpp b/src/absolute_pose/MANoncentralAbsolute.cpp
+index d9b5b09..29d6406 100644
+--- a/src/absolute_pose/MANoncentralAbsolute.cpp
++++ b/src/absolute_pose/MANoncentralAbsolute.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/absolute_pose/MANoncentralAbsolute.hpp>
+ 
++#include <cassert>
++
+ opengv::absolute_pose::MANoncentralAbsolute::MANoncentralAbsolute(
+     const double * points,
+     const double * bearingVectors,
+diff --git a/src/absolute_pose/NoncentralAbsoluteAdapter.cpp b/src/absolute_pose/NoncentralAbsoluteAdapter.cpp
+index 30176aa..d983ea6 100644
+--- a/src/absolute_pose/NoncentralAbsoluteAdapter.cpp
++++ b/src/absolute_pose/NoncentralAbsoluteAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
+     const bearingVectors_t & bearingVectors,
+     const camCorrespondences_t & camCorrespondences,
+diff --git a/src/absolute_pose/NoncentralAbsoluteMultiAdapter.cpp b/src/absolute_pose/NoncentralAbsoluteMultiAdapter.cpp
+index 88c237a..50128ce 100644
+--- a/src/absolute_pose/NoncentralAbsoluteMultiAdapter.cpp
++++ b/src/absolute_pose/NoncentralAbsoluteMultiAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/absolute_pose/NoncentralAbsoluteMultiAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::absolute_pose::NoncentralAbsoluteMultiAdapter::NoncentralAbsoluteMultiAdapter(
+     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors,
+     std::vector<std::shared_ptr<points_t> > points,
+diff --git a/src/absolute_pose/methods.cpp b/src/absolute_pose/methods.cpp
+index b1f0889..40066d7 100644
+--- a/src/absolute_pose/methods.cpp
++++ b/src/absolute_pose/methods.cpp
+@@ -43,6 +43,7 @@
+ #include <opengv/math/roots.hpp>
+ 
+ #include <iostream>
++#include <cassert>
+ 
+ opengv::translation_t
+ opengv::absolute_pose::p2p(
+@@ -202,7 +203,7 @@ opengv::absolute_pose::gp3p(
+   {
+     f.col(i) = adapter.getBearingVector(indices[i]);
+     rotation_t R = adapter.getCamRotation(indices[i]);
+-    
++
+     //unrotate the bearingVectors already so the camera rotation doesn't appear
+     //in the problem
+     f.col(i) = R * f.col(i);
+@@ -447,7 +448,7 @@ void fill3x10( const Eigen::Vector3d & x, Eigen::Matrix<double,3,10> & Phi )
+   double x1 = x[0];
+   double x2 = x[1];
+   double x3 = x[2];
+-  
++
+   Phi << x1,  x1, -x1, -x1,     0.0,  2.0*x3, -2.0*x2, 2.0*x2, 2.0*x3,    0.0,
+          x2, -x2,  x2, -x2, -2.0*x3,     0.0,  2.0*x1, 2.0*x1,    0.0, 2.0*x3,
+          x3, -x3, -x3,  x3,  2.0*x2, -2.0*x1,     0.0,    0.0, 2.0*x1, 2.0*x2;
+@@ -486,73 +487,73 @@ transformations_t upnp(
+     const Indices & indices )
+ {
+   assert( indices.size() > 2 );
+-    
++
+   Eigen::Matrix<double,3,3> F = Eigen::Matrix3d::Zero();
+   for( int i = 0; i < (int) indices.size(); i++ )
+   {
+     Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[i]) * adapter.getBearingVector(indices[i]);
+     F += f * f.transpose();
+   }
+-  
++
+   Eigen::Matrix<double,3,3> H_inv = (indices.size() * Eigen::Matrix<double,3,3>::Identity()) - F;
+   Eigen::Matrix<double,3,3> H = H_inv.inverse();
+-  
++
+   Eigen::Matrix<double,3,10> I = Eigen::Matrix<double,3,10>::Zero();
+   Eigen::Matrix<double,3,1> J = Eigen::Matrix<double,3,1>::Zero();
+   Eigen::Matrix<double,3,10> Phi;
+-  
++
+   for( int i = 0; i < (int) indices.size(); i++ )
+   {
+     Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[i]) * adapter.getBearingVector(indices[i]);
+     Eigen::Matrix<double,3,3> Vk = H * ( f * f.transpose() - Eigen::Matrix<double,3,3>::Identity() );
+     Eigen::Matrix<double,3,1> p = adapter.getPoint(indices[i]);
+     Eigen::Matrix<double,3,1> v = adapter.getCamOffset(indices[i]);
+-    
++
+     fill3x10(p,Phi);
+     I += Vk * Phi;
+     J += Vk * v;
+   }
+-  
++
+   Eigen::Matrix<double,10,10> M = Eigen::Matrix<double,10,10>::Zero();
+   Eigen::Matrix<double,1,10>  C = Eigen::Matrix<double,1,10>::Zero();
+   double gamma = 0.0;
+-  
++
+   for(int i = 0; i < (int) indices.size(); i++ )
+-  {    
++  {
+     Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[i]) * adapter.getBearingVector(indices[i]);
+     Eigen::Matrix<double,3,1> v = adapter.getCamOffset(indices[i]);
+     Eigen::Matrix<double,3,1> p = adapter.getPoint(indices[i]);
+-    
++
+     fill3x10(p,Phi);
+     Eigen::Matrix<double,3,3> temp = f*f.transpose() - Eigen::Matrix<double,3,3>::Identity();
+     Eigen::Matrix<double,3,10> Ai =  temp * (Phi + I);
+     Eigen::Matrix<double,3, 1> bi = -temp * (  v + J);
+-    
++
+     M     += (Ai.transpose() * Ai);
+     C     += (bi.transpose() * Ai);
+     gamma += (bi.transpose() * bi);
+   }
+-  
++
+   //now do the main computation
+   std::vector<std::pair<double,Eigen::Vector4d>,Eigen::aligned_allocator< std::pair<double,Eigen::Vector4d> > > quaternions1;
+   if( indices.size() > 4 )
+     modules::upnp_main_sym( M, C, gamma, quaternions1 );
+   else
+     modules::upnp_main( M, C, gamma, quaternions1 );
+-  
++
+   //prepare the output vector
+   transformations_t transformations;
+-  
++
+   //Round 1: chirality check
+   std::vector<std::pair<double,Eigen::Vector4d>,Eigen::aligned_allocator< std::pair<double,Eigen::Vector4d> > > quaternions2;
+   for( size_t i = 0; i < quaternions1.size(); i++ )
+   {
+     rotation_t Rinv = math::quaternion2rot(quaternions1[i].second);
+-    
++
+     Eigen::Matrix<double,10,1> s;
+     modules::upnp_fill_s( quaternions1[i].second, s );
+     translation_t tinv = I*s - J;
+-    
++
+     if( transformations.size() == 0 )
+     {
+       transformation_t newTransformation;
+@@ -560,71 +561,71 @@ transformations_t upnp(
+       newTransformation.block<3,1>(0,3) = -newTransformation.block<3,3>(0,0) * tinv;
+       transformations.push_back(newTransformation);
+     }
+-    
++
+     int count_negative = 0;
+-    
++
+     for( int j = 0; j < (int) indices.size(); j++ )
+     {
+       Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[j]) * adapter.getBearingVector(indices[j]);
+       Eigen::Matrix<double,3,1> p = adapter.getPoint(indices[j]);
+       Eigen::Matrix<double,3,1> v = adapter.getCamOffset(indices[j]);
+-      
++
+       Eigen::Vector3d p_est = Rinv*p + tinv - v;
+-      
++
+       if( p_est.transpose()*f < 0.0 )
+         count_negative++;
+     }
+-    
++
+     if( count_negative < floor(0.2 * indices.size() + 0.5) )
+       quaternions2.push_back(quaternions1[i]);
+   }
+-  
++
+   if( quaternions2.size() == 0 )
+     return transformations;
+   else
+     transformations.clear();
+-  
++
+   //Round 2: Second order optimality (plus polishing)
+   Eigen::Matrix<double,3,10> I_cay;
+   Eigen::Matrix<double,10,10> M_cay;
+   Eigen::Matrix<double,1,10>  C_cay;
+   double gamma_cay;
+-  
++
+   for( size_t q = 0; q < quaternions2.size(); q++ )
+-  {    
++  {
+     I_cay = Eigen::Matrix<double,3,10>::Zero();
+     rotation_t Rinv = math::quaternion2rot(quaternions2[q].second);
+-    
++
+     for( int i = 0; i < (int) indices.size(); i++ )
+     {
+       Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[i]) * adapter.getBearingVector(indices[i]);
+       Eigen::Matrix<double,3,3> Vk = H * ( f * f.transpose() - Eigen::Matrix<double,3,3>::Identity() );
+       Eigen::Matrix<double,3,1> p = Rinv * adapter.getPoint(indices[i]);
+-      
++
+       fill3x10(p,Phi);
+       I_cay += Vk * Phi;
+     }
+-    
++
+     M_cay = Eigen::Matrix<double,10,10>::Zero();
+     C_cay = Eigen::Matrix<double,1,10>::Zero();
+     gamma_cay = 0.0;
+-    
++
+     for(int i = 0; i < (int) indices.size(); i++ )
+-    {    
++    {
+       Eigen::Matrix<double,3,1> f = adapter.getCamRotation(indices[i]) * adapter.getBearingVector(indices[i]);
+       Eigen::Matrix<double,3,1> v = adapter.getCamOffset(indices[i]);
+       Eigen::Matrix<double,3,1> p = Rinv * adapter.getPoint(indices[i]);
+-      
++
+       fill3x10(p,Phi);
+       Eigen::Matrix<double,3,3> temp = f*f.transpose() - Eigen::Matrix<double,3,3>::Identity();
+       Eigen::Matrix<double,3,10> Ai =  temp * (Phi + I_cay);
+       Eigen::Matrix<double,3,1> bi = -temp * (  v + J);
+-      
++
+       M_cay     += (Ai.transpose() * Ai);
+       C_cay     += (bi.transpose() * Ai);
+       gamma_cay += (bi.transpose() * bi);
+     }
+-    
++
+     //now analyze the eigenvalues of the "Hessian"
+     Eigen::Vector3d val;
+     Eigen::Matrix3d Jacobian;
+@@ -635,8 +636,8 @@ transformations_t upnp(
+     characteristicPolynomial.push_back(Jacobian(2,2)+Jacobian(1,1)+Jacobian(0,0));
+     characteristicPolynomial.push_back(-Jacobian(2,2)*Jacobian(1,1)-Jacobian(2,2)*Jacobian(0,0)-Jacobian(1,1)*Jacobian(0,0)+pow(Jacobian(1,2),2)+pow(Jacobian(0,2),2)+pow(Jacobian(0,1),2));
+     characteristicPolynomial.push_back(Jacobian(2,2)*Jacobian(1,1)*Jacobian(0,0)+2*Jacobian(1,2)*Jacobian(0,2)*Jacobian(0,1)-Jacobian(2,2)*pow(Jacobian(0,1),2)-pow(Jacobian(1,2),2)*Jacobian(0,0)-Jacobian(1,1)*pow(Jacobian(0,2),2));
+-    
+-    
++
++
+     //const std::vector<double> roots = opengv::math::o3_roots( characteristicPolynomial );
+     //
+     //bool allPositive = true;
+@@ -657,18 +658,18 @@ transformations_t upnp(
+       Eigen::Vector3d cay = - Jacobian.inverse() * val;
+       rotation_t Rinv2 = math::cayley2rot(cay) * Rinv;
+       quaternion_t q = math::rot2quaternion(Rinv2);
+-      
++
+       Eigen::Matrix<double,10,1> s;
+       modules::upnp_fill_s(q,s);
+       translation_t tinv = I*s - J;
+-      
++
+       transformation_t newTransformation;
+       newTransformation.block<3,3>(0,0) = Rinv2.transpose();
+       newTransformation.block<3,1>(0,3) = -newTransformation.block<3,3>(0,0) * tinv;
+       transformations.push_back(newTransformation);
+     }
+   }
+-  
++
+   //if there are no results, simply add the one with lowest score
+   if( transformations.size() == 0 )
+   {
+@@ -677,13 +678,13 @@ transformations_t upnp(
+     modules::upnp_fill_s(q,s);
+     translation_t tinv = I*s - J;
+     rotation_t Rinv = math::quaternion2rot(q);
+-    
++
+     transformation_t newTransformation;
+     newTransformation.block<3,3>(0,0) = Rinv.transpose();
+     newTransformation.block<3,1>(0,3) = -newTransformation.block<3,3>(0,0) * tinv;
+     transformations.push_back(newTransformation);
+   }
+-  
++
+   return transformations;
+ }
+ 
+diff --git a/src/absolute_pose/modules/main.cpp b/src/absolute_pose/modules/main.cpp
+index ed0c271..f359793 100644
+--- a/src/absolute_pose/modules/main.cpp
++++ b/src/absolute_pose/modules/main.cpp
+@@ -46,6 +46,8 @@
+ #include <opengv/math/arun.hpp>
+ #include <opengv/math/cayley.hpp>
+ 
++#include <cassert>
++
+ void
+ opengv::absolute_pose::modules::p3p_kneip_main(
+     const bearingVectors_t & f,
+@@ -732,16 +734,16 @@ opengv::absolute_pose::modules::upnp_main(
+   upnp::setupAction_gj( M, C, gamma, Action );
+   Eigen::EigenSolver< Eigen::Matrix<double,16,16> > Eig( Action, true );
+   Eigen::Matrix<std::complex<double>,16,16> V = Eig.eigenvectors();
+-  
++
+   //cut the double solutions
+   double doubleSolThreshold = 0.00000001;
+-  
++
+   for( int i = 0; i < 16; i++ )
+   {
+     //we decided to drop the test for imaginary part
+     //I've noticed that when the number of points is really low, things get a little
+     //weary with noise, and complex solutions might actually be pretty good
+-    
++
+     Eigen::Vector4d quaternion;
+     double norm = 0.0;
+     for( int q = 0; q < 4; q++ )
+@@ -754,7 +756,7 @@ opengv::absolute_pose::modules::upnp_main(
+       norm *= -1.0;
+     for( int q = 0; q < 4; q++ )
+       quaternion[q] /= norm;
+-    
++
+     bool alreadyThere = false;
+     for( size_t s = 0; s < quaternions.size(); s++ )
+     {
+@@ -765,19 +767,19 @@ opengv::absolute_pose::modules::upnp_main(
+         break;
+       }
+     }
+-    
++
+     if( !alreadyThere )
+     {
+       Eigen::Matrix<double,10,1> s;
+       upnp_fill_s(quaternion,s);
+       Eigen::Matrix<double,1,1> valueM = s.transpose() * M * s + C * s * 2.0;
+       double value = valueM[0] + gamma;
+-      
++
+       std::vector<std::pair<double,Eigen::Vector4d>,Eigen::aligned_allocator< std::pair<double,Eigen::Vector4d> > >::iterator
+           qidx = quaternions.begin();
+       while( qidx != quaternions.end() && qidx->first < value )
+         qidx++;
+-      
++
+       quaternions.insert(qidx,std::pair<double,Eigen::Vector4d>(value,quaternion));
+     }
+   }
+@@ -795,11 +797,11 @@ opengv::absolute_pose::modules::upnp_main_sym(
+   upnp::setupAction_sym_gj( M, C, gamma, Action );
+   Eigen::EigenSolver< Eigen::Matrix<double,8,8> > Eig( Action, true );
+   Eigen::Matrix<std::complex<double>,8,8> V = Eig.eigenvectors();
+-  
++
+   //ok, let's cut the imaginary solutions (with a reasonable threshold!)
+   // const double imagThreshold = 0.01;
+   std::vector<std::pair<double,Eigen::Vector4d>,Eigen::aligned_allocator< std::pair<double,Eigen::Vector4d> > > bad_quaternions;
+-  
++
+   for( int i = 0; i < 8; i++ )
+   {
+     Eigen::Vector4d quaternion;
+@@ -807,14 +809,14 @@ opengv::absolute_pose::modules::upnp_main_sym(
+     quaternion[2] = V(6,i).real();
+     quaternion[1] = V(5,i).real();
+     quaternion[0] = V(4,i).real();
+-    
++
+     double norm = 0.0;
+     for( int q = 0; q < 4; q++ )
+       norm += pow(quaternion[q],2.0);
+     norm = sqrt(norm);
+     for( int q = 0; q < 4; q++ )
+       quaternion[q] /= norm;
+-    
++
+     Eigen::Matrix<double,10,1> s;
+     upnp_fill_s(quaternion,s);
+     Eigen::Matrix<double,1,1> valueM = s.transpose() * M * s + 2.0 * C * s;
+@@ -826,7 +828,7 @@ opengv::absolute_pose::modules::upnp_main_sym(
+           qidx = quaternions.begin();
+       while( qidx != quaternions.end() && qidx->first < value )
+         qidx++;
+-      
++
+       quaternions.insert(qidx,std::pair<double,Eigen::Vector4d>(value,quaternion));
+     }
+     else
+@@ -835,7 +837,7 @@ opengv::absolute_pose::modules::upnp_main_sym(
+           qidx = bad_quaternions.begin();
+       while( qidx != bad_quaternions.end() && qidx->first < value )
+         qidx++;
+-      
++
+       bad_quaternions.insert(qidx,std::pair<double,Eigen::Vector4d>(value,quaternion));
+     }
+   }
+diff --git a/src/math/arun.cpp b/src/math/arun.cpp
+index a0d6296..73b11ce 100644
+--- a/src/math/arun.cpp
++++ b/src/math/arun.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/math/arun.hpp>
+ 
++#include <cassert>
++
+ opengv::rotation_t
+ opengv::math::arun( const Eigen::MatrixXd & Hcross )
+ {
+diff --git a/src/point_cloud/MAPointCloud.cpp b/src/point_cloud/MAPointCloud.cpp
+index 81fd5dd..26298d7 100644
+--- a/src/point_cloud/MAPointCloud.cpp
++++ b/src/point_cloud/MAPointCloud.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/point_cloud/MAPointCloud.hpp>
+ 
++#include <cassert>
++
+ opengv::point_cloud::MAPointCloud::MAPointCloud(
+     const double * points1,
+     const double * points2,
+@@ -49,7 +51,7 @@ opengv::point_cloud::MAPointCloud::~MAPointCloud()
+ opengv::point_t
+ opengv::point_cloud::MAPointCloud::
+     getPoint1( size_t index ) const
+-{  
++{
+   point_t point;
+   assert( index < _numberPoints1 );
+   point[0] = _points1[ 3 * index];
+diff --git a/src/point_cloud/PointCloudAdapter.cpp b/src/point_cloud/PointCloudAdapter.cpp
+index f9faaeb..e71762c 100644
+--- a/src/point_cloud/PointCloudAdapter.cpp
++++ b/src/point_cloud/PointCloudAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/point_cloud/PointCloudAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::point_cloud::PointCloudAdapter::PointCloudAdapter(
+     const points_t & points1,
+     const points_t & points2 ) :
+diff --git a/src/point_cloud/methods.cpp b/src/point_cloud/methods.cpp
+index 5409eeb..f098a1d 100644
+--- a/src/point_cloud/methods.cpp
++++ b/src/point_cloud/methods.cpp
+@@ -39,6 +39,8 @@
+ #include <opengv/math/arun.hpp>
+ #include <opengv/math/cayley.hpp>
+ 
++#include <cassert>
++
+ namespace opengv
+ {
+ namespace point_cloud
+diff --git a/src/relative_pose/CentralRelativeAdapter.cpp b/src/relative_pose/CentralRelativeAdapter.cpp
+index 38e9a62..682420a 100644
+--- a/src/relative_pose/CentralRelativeAdapter.cpp
++++ b/src/relative_pose/CentralRelativeAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/CentralRelativeAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::CentralRelativeAdapter::CentralRelativeAdapter(
+     const bearingVectors_t & bearingVectors1,
+     const bearingVectors_t & bearingVectors2 ) :
+diff --git a/src/relative_pose/CentralRelativeMultiAdapter.cpp b/src/relative_pose/CentralRelativeMultiAdapter.cpp
+index 2ab7476..67c7d2b 100644
+--- a/src/relative_pose/CentralRelativeMultiAdapter.cpp
++++ b/src/relative_pose/CentralRelativeMultiAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/CentralRelativeMultiAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::CentralRelativeMultiAdapter::CentralRelativeMultiAdapter(
+     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors1,
+     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors2 ) :
+@@ -54,7 +56,7 @@ opengv::relative_pose::CentralRelativeMultiAdapter::CentralRelativeMultiAdapter(
+     singleIndexOffset += bearingVectors2[pairIndex]->size();
+   }
+ }
+-  
++
+ opengv::relative_pose::CentralRelativeMultiAdapter::~CentralRelativeMultiAdapter()
+ {}
+ 
+diff --git a/src/relative_pose/CentralRelativeWeightingAdapter.cpp b/src/relative_pose/CentralRelativeWeightingAdapter.cpp
+index a6ab478..7baf205 100644
+--- a/src/relative_pose/CentralRelativeWeightingAdapter.cpp
++++ b/src/relative_pose/CentralRelativeWeightingAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/CentralRelativeWeightingAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::CentralRelativeWeightingAdapter::CentralRelativeWeightingAdapter(
+     const bearingVectors_t & bearingVectors1,
+     const bearingVectors_t & bearingVectors2,
+diff --git a/src/relative_pose/MACentralRelative.cpp b/src/relative_pose/MACentralRelative.cpp
+index ec2959f..e0afae7 100644
+--- a/src/relative_pose/MACentralRelative.cpp
++++ b/src/relative_pose/MACentralRelative.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/MACentralRelative.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::MACentralRelative::MACentralRelative(
+     const double * bearingVectors1,
+     const double * bearingVectors2,
+@@ -49,7 +51,7 @@ opengv::bearingVector_t
+ opengv::relative_pose::MACentralRelative::
+     getBearingVector1( size_t index ) const
+ {
+-  bearingVector_t bearingVector;  
++  bearingVector_t bearingVector;
+   assert(index < _numberBearingVectors1);
+   bearingVector[0] = _bearingVectors1[index * 3];
+   bearingVector[1] = _bearingVectors1[index * 3 + 1];
+diff --git a/src/relative_pose/MANoncentralRelative.cpp b/src/relative_pose/MANoncentralRelative.cpp
+index cea9c14..e7679ae 100644
+--- a/src/relative_pose/MANoncentralRelative.cpp
++++ b/src/relative_pose/MANoncentralRelative.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/MANoncentralRelative.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::MANoncentralRelative::MANoncentralRelative(
+       const double * bearingVectors1,
+       const double * bearingVectors2,
+diff --git a/src/relative_pose/MANoncentralRelativeMulti.cpp b/src/relative_pose/MANoncentralRelativeMulti.cpp
+index 49f8ecf..4d0f0b4 100644
+--- a/src/relative_pose/MANoncentralRelativeMulti.cpp
++++ b/src/relative_pose/MANoncentralRelativeMulti.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/MANoncentralRelativeMulti.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::MANoncentralRelativeMulti::MANoncentralRelativeMulti(
+     const std::vector<double*> & bearingVectors1,
+     const std::vector<double*> & bearingVectors2,
+@@ -40,7 +42,7 @@ opengv::relative_pose::MANoncentralRelativeMulti::MANoncentralRelativeMulti(
+     _bearingVectors2(bearingVectors2),
+     _camOffsets(camOffsets),
+     _numberBearingVectors(numberBearingVectors)
+-{  
++{
+   // The following variables are needed for the serialization and
+   // de-serialization of indices
+   size_t singleIndexOffset = 0;
+@@ -68,12 +70,12 @@ opengv::relative_pose::MANoncentralRelativeMulti::
+ {
+   assert(pairIndex < _numberBearingVectors.size());
+   assert(correspondenceIndex < _numberBearingVectors[pairIndex]);
+-  
++
+   bearingVector_t bearingVector;
+   bearingVector[0] = _bearingVectors1[pairIndex][correspondenceIndex * 3];
+   bearingVector[1] = _bearingVectors1[pairIndex][correspondenceIndex * 3 + 1];
+   bearingVector[2] = _bearingVectors1[pairIndex][correspondenceIndex * 3 + 2];
+-  
++
+   return bearingVector;
+ }
+ 
+@@ -83,12 +85,12 @@ opengv::relative_pose::MANoncentralRelativeMulti::
+ {
+   assert(pairIndex < _numberBearingVectors.size());
+   assert(correspondenceIndex < _numberBearingVectors[pairIndex]);
+-  
++
+   bearingVector_t bearingVector;
+   bearingVector[0] = _bearingVectors2[pairIndex][correspondenceIndex * 3];
+   bearingVector[1] = _bearingVectors2[pairIndex][correspondenceIndex * 3 + 1];
+   bearingVector[2] = _bearingVectors2[pairIndex][correspondenceIndex * 3 + 2];
+-  
++
+   return bearingVector;
+ }
+ 
+@@ -143,7 +145,7 @@ opengv::relative_pose::MANoncentralRelativeMulti::
+   {
+     for(
+         size_t correspondenceIndex = 0;
+-        correspondenceIndex < multiIndices[pairIndex].size(); 
++        correspondenceIndex < multiIndices[pairIndex].size();
+         correspondenceIndex++ )
+       singleIndices.push_back(convertMultiIndex(
+           pairIndex, multiIndices[pairIndex][correspondenceIndex] ));
+diff --git a/src/relative_pose/NoncentralRelativeAdapter.cpp b/src/relative_pose/NoncentralRelativeAdapter.cpp
+index 552f180..b4a9a14 100644
+--- a/src/relative_pose/NoncentralRelativeAdapter.cpp
++++ b/src/relative_pose/NoncentralRelativeAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/NoncentralRelativeAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
+     const bearingVectors_t & bearingVectors1,
+     const bearingVectors_t & bearingVectors2,
+diff --git a/src/relative_pose/NoncentralRelativeMultiAdapter.cpp b/src/relative_pose/NoncentralRelativeMultiAdapter.cpp
+index f41edbe..8321f1d 100644
+--- a/src/relative_pose/NoncentralRelativeMultiAdapter.cpp
++++ b/src/relative_pose/NoncentralRelativeMultiAdapter.cpp
+@@ -31,6 +31,8 @@
+ 
+ #include <opengv/relative_pose/NoncentralRelativeMultiAdapter.hpp>
+ 
++#include <cassert>
++
+ opengv::relative_pose::NoncentralRelativeMultiAdapter::NoncentralRelativeMultiAdapter(
+     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors1,
+     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors2,
+@@ -43,7 +45,7 @@ opengv::relative_pose::NoncentralRelativeMultiAdapter::NoncentralRelativeMultiAd
+ {
+   // The following variables are needed for the serialization and
+   // de-serialization of indices
+-  
++
+   size_t singleIndexOffset = 0;
+   for( size_t pairIndex = 0; pairIndex < bearingVectors2.size(); pairIndex++ )
+   {
+@@ -81,7 +83,7 @@ opengv::relative_pose::NoncentralRelativeMultiAdapter::
+   assert(pairIndex < _bearingVectors2.size());
+ 
+   assert(correspondenceIndex < _bearingVectors2[pairIndex]->size());
+-  
++
+   return (*_bearingVectors2[pairIndex])[correspondenceIndex];
+ }
+ 
+@@ -131,12 +133,12 @@ opengv::relative_pose::NoncentralRelativeMultiAdapter::
+ {
+   std::vector<int> singleIndices;
+   for(size_t pairIndex = 0; pairIndex < multiIndices.size(); pairIndex++)
+-  {  
++  {
+     for(
+         size_t correspondenceIndex = 0;
+         correspondenceIndex < multiIndices[pairIndex].size();
+         correspondenceIndex++ )
+-    {      
++    {
+       singleIndices.push_back(convertMultiIndex(
+           pairIndex, multiIndices[pairIndex][correspondenceIndex] ));
+     }
+diff --git a/src/relative_pose/methods.cpp b/src/relative_pose/methods.cpp
+index 0027dae..d465ef7 100644
+--- a/src/relative_pose/methods.cpp
++++ b/src/relative_pose/methods.cpp
+@@ -42,6 +42,7 @@
+ #include <opengv/triangulation/methods.hpp>
+ 
+ #include <iostream>
++#include <cassert>
+ 
+ opengv::translation_t
+ opengv::relative_pose::twopt(
+@@ -357,7 +358,7 @@ essentials_t sevenpt(
+ 
+   double eps = 0.00000001;
+   essentials_t essentials;
+-  
++
+   if( fabs(F1.determinant()) < eps || numberCorrespondences > 7 )
+   {
+     essentials.push_back(F1);
+@@ -389,7 +390,7 @@ essentials_t sevenpt(
+       }
+       if( val3 < min )
+         minIndex = 2;
+-      
++
+       essentials.push_back( F1 - D(minIndex,0).real() * F2 );
+     }
+   }
+@@ -521,7 +522,7 @@ rotation_t eigensolver(
+     bearingVector_t f1 = adapter.getBearingVector1(indices[i]);
+     bearingVector_t f2 = adapter.getBearingVector2(indices[i]);
+     Eigen::Matrix3d F = f2*f2.transpose();
+-    
++
+     double weight = 1.0;
+     if( useWeights )
+       weight = adapter.getWeight(indices[i])/norm;
+@@ -614,16 +615,16 @@ rotations_t sixpt(
+         adapter.getCamRotation1(indices[i]) * adapter.getBearingVector1(indices[i]);
+     bearingVector_t f2 =
+         adapter.getCamRotation2(indices[i]) * adapter.getBearingVector2(indices[i]);
+-        
++
+     L1.block<3,1>(0,i) = f1;
+     L2.block<3,1>(0,i) = f2;
+-    
++
+     L1.block<3,1>(3,i) = f1.cross(adapter.getCamOffset1(indices[i]));
+     L2.block<3,1>(3,i) = f2.cross(adapter.getCamOffset2(indices[i]));
+   }
+ 
+   rotations_t solutions;
+-  modules::sixpt_main( L1, L2, solutions );  
++  modules::sixpt_main( L1, L2, solutions );
+   return solutions;
+ }
+ 
+@@ -657,7 +658,7 @@ rotation_t ge(
+     const Indices & indices,
+     geOutput_t & output,
+     bool useWeights )
+-{ 
++{
+   size_t numberCorrespondences = indices.size();
+   assert(numberCorrespondences > 5);
+ 
+@@ -667,14 +668,14 @@ rotation_t ge(
+   Eigen::Matrix3d xyF = Eigen::Matrix3d::Zero();
+   Eigen::Matrix3d yzF = Eigen::Matrix3d::Zero();
+   Eigen::Matrix3d zxF = Eigen::Matrix3d::Zero();
+-  
++
+   Eigen::Matrix<double,3,9> x1P = Eigen::Matrix<double,3,9>::Zero();
+   Eigen::Matrix<double,3,9> y1P = Eigen::Matrix<double,3,9>::Zero();
+   Eigen::Matrix<double,3,9> z1P = Eigen::Matrix<double,3,9>::Zero();
+   Eigen::Matrix<double,3,9> x2P = Eigen::Matrix<double,3,9>::Zero();
+   Eigen::Matrix<double,3,9> y2P = Eigen::Matrix<double,3,9>::Zero();
+   Eigen::Matrix<double,3,9> z2P = Eigen::Matrix<double,3,9>::Zero();
+-  
++
+   Eigen::Matrix<double,9,9> m11P = Eigen::Matrix<double,9,9>::Zero();
+   Eigen::Matrix<double,9,9> m12P = Eigen::Matrix<double,9,9>::Zero();
+   Eigen::Matrix<double,9,9> m22P = Eigen::Matrix<double,9,9>::Zero();
+@@ -692,13 +693,13 @@ rotation_t ge(
+     double weight = 1.0;
+     if( useWeights )
+       weight = adapter.getWeight(indices[i])/norm;
+-    
++
+     //unrotate the bearing vectors
+     bearingVector_t f1 = adapter.getCamRotation1(indices[i]) *
+         adapter.getBearingVector1(indices[i]);
+     bearingVector_t f2 = adapter.getCamRotation2(indices[i]) *
+         adapter.getBearingVector2(indices[i]);
+-    
++
+     //compute the standard summation terms
+     Eigen::Matrix3d F = f2*f2.transpose();
+ 
+@@ -708,11 +709,11 @@ rotation_t ge(
+     xyF = xyF + weight*f1[0]*f1[1]*F;
+     yzF = yzF + weight*f1[1]*f1[2]*F;
+     zxF = zxF + weight*f1[2]*f1[0]*F;
+-    
+-    //now compute the "cross"-summation terms    
++
++    //now compute the "cross"-summation terms
+     Eigen::Vector3d t1 = adapter.getCamOffset1(indices[i]);
+     Eigen::Vector3d t2 = adapter.getCamOffset2(indices[i]);
+-    
++
+     Eigen::Matrix<double,1,9> f2_19;
+     double temp = f1[1]*t1[2]-f1[2]*t1[1];
+     f2_19(0,0) = f2[0] * temp;
+@@ -726,7 +727,7 @@ rotation_t ge(
+     f2_19(0,6) = f2[0] * temp;
+     f2_19(0,7) = f2[1] * temp;
+     f2_19(0,8) = f2[2] * temp;
+-    
++
+     Eigen::Matrix<double,1,9> f1_19;
+     temp = f2[1]*t2[2]-f2[2]*t2[1];
+     f1_19(0,0) = f1[0] * temp;
+@@ -740,17 +741,17 @@ rotation_t ge(
+     f1_19(0,6) = f1[0] * temp;
+     f1_19(0,7) = f1[1] * temp;
+     f1_19(0,8) = f1[2] * temp;
+-    
++
+     if( useWeights )
+     {
+       x1P = x1P + ( (weight * f1[0]) * f2 ) * f1_19;
+       y1P = y1P + ( (weight * f1[1]) * f2 ) * f1_19;
+       z1P = z1P + ( (weight * f1[2]) * f2 ) * f1_19;
+-      
++
+       x2P = x2P + ( (weight * f1[0]) * f2 ) * f2_19;
+       y2P = y2P + ( (weight * f1[1]) * f2 ) * f2_19;
+       z2P = z2P + ( (weight * f1[2]) * f2 ) * f2_19;
+-      
++
+       m11P = m11P - ( weight * f1_19.transpose() ) * f1_19;
+       m22P = m22P - ( weight * f2_19.transpose() ) * f2_19;
+       m12P = m12P - ( weight * f2_19.transpose() ) * f1_19;
+@@ -760,11 +761,11 @@ rotation_t ge(
+       x1P = x1P + ( f1[0] * f2 ) * f1_19;
+       y1P = y1P + ( f1[1] * f2 ) * f1_19;
+       z1P = z1P + ( f1[2] * f2 ) * f1_19;
+-      
++
+       x2P = x2P + ( f1[0]) * f2 * f2_19;
+       y2P = y2P + ( f1[1]) * f2 * f2_19;
+       z2P = z2P + ( f1[2]) * f2 * f2_19;
+-      
++
+       m11P = m11P - f1_19.transpose() * f1_19;
+       m22P = m22P - f2_19.transpose() * f2_19;
+       m12P = m12P - f2_19.transpose() * f1_19;
+@@ -924,7 +925,7 @@ transformation_t seventeenpt(
+     if( temp > pinvtoler_ )
+       SigmaInverse_(i,i) = 1.0/temp;
+   }
+-  
++
+   Eigen::MatrixXd ARP(9,numberCorrespondences);
+   ARP = SVDARP.matrixV()*SigmaInverse_*SVDARP.matrixU().transpose();
+ 
+@@ -933,7 +934,7 @@ transformation_t seventeenpt(
+   B = B + AR*ARP;
+ 
+   Eigen::MatrixXd C = B*AE;
+-  
++
+   Eigen::JacobiSVD< Eigen::MatrixXd > SVDE(
+       C,
+       Eigen::ComputeThinU | Eigen::ComputeThinV );
+@@ -1002,7 +1003,7 @@ transformation_t seventeenpt(
+     b_tra(i) = -d1.dot(Ra*temp2) -temp1.dot(Ra*d2);
+     b_trb(i) = -d1.dot(Rb*temp2) -temp1.dot(Rb*d2);
+   }
+-  
++
+   Eigen::JacobiSVD< Eigen::MatrixXd > SVDa(
+       A_tra,
+       Eigen::ComputeThinU | Eigen::ComputeThinV );
+diff --git a/src/relative_pose/modules/fivept_nister/modules.cpp b/src/relative_pose/modules/fivept_nister/modules.cpp
+index 4b134c5..293a08a 100644
+--- a/src/relative_pose/modules/fivept_nister/modules.cpp
++++ b/src/relative_pose/modules/fivept_nister/modules.cpp
+@@ -35,6 +35,8 @@
+ 
+ #include <opengv/OptimizationFunctor.hpp>
+ 
++#include <cassert>
++
+ void
+ opengv::relative_pose::modules::fivept_nister::composeA(
+     const Eigen::Matrix<double,9,4> & EE,

@@ -1,0 +1,83 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "ROI.comp"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// The input and output depth thickness map
+layout(rg32f, set = 0, binding = 0) uniform image2D inout_depthThicknessMap_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    float minThicknessInflate;
+    float maxThicknessInflate;
+    ROI roi;
+} pushConstants;
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi))
+        return;
+
+    // corresponding output depth/thickness (depth unchanged)
+    vec4 inout_depthThicknessLoaded = imageLoad(inout_depthThicknessMap_d, ivec2(roiX, roiY));
+    vec2 inout_depthThickness = inout_depthThicknessLoaded.xy;
+
+    // depth invalid or masked
+    if(inout_depthThickness.x <= 0.0f)
+        return;
+
+    const float minThickness = pushConstants.minThicknessInflate * inout_depthThickness.y;
+    const float maxThickness = pushConstants.maxThicknessInflate * inout_depthThickness.y;
+
+    // compute average depth distance to the center pixel
+    float sumCenterDepthDist = 0.f;
+    int nbValidPatchPixels = 0;
+
+    // patch 3x3
+    for(int yp = -1; yp <= 1; ++yp)
+    {
+        for(int xp = -1; xp <= 1; ++xp)
+        {
+            // compute patch coordinates
+            const int roiXp = int(roiX) + xp;
+            const int roiYp = int(roiY) + yp;
+
+            if((xp == 0 && yp == 0) ||                                   // avoid pixel center
+                roiXp < 0 || roiXp >= ROI_width(pushConstants.roi) ||    // avoid pixel outside the ROI
+                roiYp < 0 || roiYp >= ROI_height(pushConstants.roi)      // avoid pixel outside the ROI
+            )
+            {
+                continue;
+            }
+
+            // corresponding path depth/thickness
+            const vec4 in_depthThicknessPatchLoaded = imageLoad(inout_depthThicknessMap_d, ivec2(roiXp, roiYp));
+            const vec2 in_depthThicknessPatch = in_depthThicknessPatchLoaded.xy;
+
+            // patch depth valid
+            if(in_depthThicknessPatch.x > 0.0f)
+            {
+                const float depthDistance = abs(inout_depthThickness.x - in_depthThicknessPatch.x);
+                sumCenterDepthDist += max(minThickness, min(maxThickness, depthDistance)); // clamp (minThickness, maxThickness)
+                ++nbValidPatchPixels;
+            }
+        }
+    }
+
+    // we require at least 3 valid patch pixels (over 8)
+    if(nbValidPatchPixels < 3)
+        return;
+
+    // write output smooth thickness
+    inout_depthThickness.y = sumCenterDepthDist / nbValidPatchPixels;
+
+    imageStore(inout_depthThicknessMap_d, ivec2(roiX, roiY), vec4(inout_depthThickness, inout_depthThicknessLoaded.z, inout_depthThicknessLoaded.w));
+
+}

@@ -1,0 +1,33 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "ROI.comp"
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// The output depth map
+layout(r32f, set = 0, binding = 0) uniform image2D out_tmpOptDepthMap_d;
+
+// The input depth similarity map
+layout(rg32f, set = 0, binding = 1) uniform readonly image2D in_optDepthSimMap_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    ROI roi;
+} pushConstants;
+
+void main() {
+
+    uint roiX = gl_GlobalInvocationID.x;
+    uint roiY = gl_GlobalInvocationID.y;
+
+    if(roiX >= ROI_width(pushConstants.roi) || roiY >= ROI_height(pushConstants.roi))
+        return;
+
+    vec4 outp = imageLoad(out_tmpOptDepthMap_d, ivec2(roiX, roiY));
+    outp.x = imageLoad(in_optDepthSimMap_d, ivec2(roiX, roiY)).x;
+    imageStore(out_tmpOptDepthMap_d, ivec2(roiX, roiY), outp);
+
+}

@@ -1,0 +1,38 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+// The input slice
+layout(r32ui, set = 0, binding = 0) uniform readonly uimage2D xzSlice_d;
+
+// The output slice
+layout(r32ui, set = 0, binding = 0) uniform writeonly uimage2D ySliceBestInColCst_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int volDimX;
+    int volDimZ;
+} pushConstants;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+
+    if(x >= pushConstants.volDimX)
+        return;
+
+    // NOTE: ImageLoad always returns a vec4, however, only x is a valid number.
+    uvec4 bestCst = imageLoad(xzSlice_d, ivec2(x, 0));
+
+    for(int z = 1; z < pushConstants.volDimZ; ++z)
+    {
+        const uvec4 cst = imageLoad(xzSlice_d, ivec2(x, z));
+        bestCst = cst.x < bestCst.x ? cst : bestCst;  // min(cst, bestCst);
+    }
+
+    imageStore(ySliceBestInColCst_d, ivec2(x, 0), bestCst);
+
+}

@@ -1,0 +1,79 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_shader_8bit_storage : require
+#extension GL_EXT_shader_explicit_arithmetic_types : require
+
+#include "definitions.comp"
+
+layout(local_size_x = 32, local_size_y = 2, local_size_z = 1) in;
+
+// Input image is unsigned integer RGBA8 format
+layout(set = 0, binding = 0) uniform usampler2D in_img_tex;
+
+// Output image (unsigned int 8-bit)
+layout(rgba8ui, set = 0, binding = 1) uniform writeonly uimage2D out_downscaledImg_d;
+
+layout(set = 0, binding = 2, scalar) uniform readonly GaussianArrayOffset {
+    int offsets[MAX_CONSTANT_GAUSS_SCALES];
+} d_gaussianArrayOffset;
+
+layout(set = 0, binding = 3, scalar) uniform readonly GaussianArray {
+    float gaussian[MAX_CONSTANT_GAUSS_MEM_SIZE];
+} d_gaussianArray;
+
+layout(push_constant, scalar) uniform PushConstants {
+    int downscale;
+    int gaussRadius;
+} pushConstants;
+
+float getGauss(int scale, int idx) {
+    return d_gaussianArray.gaussian[d_gaussianArrayOffset.offsets[scale] + idx];
+}
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    ivec2 outImageSize = imageSize(out_downscaledImg_d);
+
+    if (x < uint(outImageSize.x) && y < uint(outImageSize.y)) {
+
+        float s = float(pushConstants.downscale) * 0.5;
+
+        vec4 accPix = vec4(0.0);
+        float sumFactor = 0.0;
+
+        for (int i = -pushConstants.gaussRadius; i <= pushConstants.gaussRadius; i++) {
+            for (int j = -pushConstants.gaussRadius; j <= pushConstants.gaussRadius; j++) {
+
+                vec2 pixelCoord = vec2(float(x * pushConstants.downscale + j) + s,
+                float(y * pushConstants.downscale + i) + s);
+
+                ivec2 texel = ivec2(pixelCoord);
+
+                // Fetch unsigned int texel (uvec4)
+                uvec4 curPixInt = texelFetch(in_img_tex, texel, 0);
+
+                // Convert to normalized floats in [0..1]
+                vec4 curPix = vec4(curPixInt) / 255.0;
+
+                float factor = getGauss(pushConstants.downscale - 1, i + pushConstants.gaussRadius) *
+                getGauss(pushConstants.downscale - 1, j + pushConstants.gaussRadius);
+
+                accPix += curPix * factor;
+                sumFactor += factor;
+            }
+        }
+
+        // Normalize
+        vec4 outPix = accPix / sumFactor;
+
+        // Convert back to uchar RGBA and clamp [0..255]
+        uvec4 outPixInt = uvec4(clamp(outPix * 255.0, 0.0, 255.0));
+
+        imageStore(out_downscaledImg_d, ivec2(x, y), outPixInt);
+    }
+}

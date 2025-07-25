@@ -1,0 +1,35 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d0e35b6..b1f63b9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -111,7 +111,7 @@ if(APPLE)
+ endif(APPLE)
+ 
+ # FIND BOOST
+-set(BOOST_REQUIRED_COMPONENTS "atomic;chrono;date_time;filesystem;program_options;serialization;system;thread;timer;math_c99")
++set(BOOST_REQUIRED_COMPONENTS "atomic;chrono;date_time;filesystem;program_options;serialization;system;thread;timer;math")
+ if(WIN32)
+   set(BOOST_REQUIRED_COMPONENTS "${BOOST_REQUIRED_COMPONENTS};stacktrace_windbg")
+ else()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index aca1625..4ecd123 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -174,7 +174,7 @@ if(CCTAG_WITH_CUDA)
+   # since we used CUDA_ADD_LIBRARY we cannot use PUBLIC or PRIVATE here
+   target_link_libraries(CCTag
+                        ${OpenCV_LIBS}
+-                       Boost::date_time Boost::chrono Boost::thread Boost::serialization Boost::system Boost::filesystem Boost::atomic Boost::program_options Boost::timer Boost::math_c99
++                       Boost::date_time Boost::chrono Boost::thread Boost::serialization Boost::system Boost::filesystem Boost::atomic Boost::program_options Boost::timer Boost::math
+                        Eigen3::Eigen
+                        TBB::tbb
+                        ${CUDA_CUDADEVRT_LIBRARY})
+@@ -220,7 +220,7 @@ else() # without CUDA
+                         PUBLIC
+                           ${OpenCV_LIBS}
+                           Eigen3::Eigen
+-                          Boost::atomic Boost::chrono Boost::date_time Boost::filesystem Boost::serialization Boost::system Boost::thread Boost::timer Boost::math_c99
++                          Boost::atomic Boost::chrono Boost::date_time Boost::filesystem Boost::serialization Boost::system Boost::thread Boost::timer Boost::math
+                         PRIVATE
+                           TBB::tbb)
+ 

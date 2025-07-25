@@ -1,0 +1,28 @@
+#ifndef DEVICE_PATCH_PATTERN
+#define DEVICE_PATCH_PATTERN
+
+#include "definitions.comp"
+
+struct DevicePatchPatternSubpart
+{
+    int nbCoordinates;                                                     //< subpart number of coordinate
+    float level;                                                           //< subpart related mipmap level (>=0)
+    float downscale;                                                       //< subpart related mipmap downscale (>=1)
+    float weight;                                                          //< subpart related similarity weight in range (0, 1)
+    bool isCircle;                                                         //< subpart is a circle
+    int wsh;                                                               //< subpart half-width (full and circle)
+    vec2 coordinates[ALICEVISION_DEVICE_PATCH_MAX_COORDS_PER_SUBPARTS];    //< subpart coordinate list
+};
+
+/**
+ * @struct DevicePatchPattern
+ * @brief Support class to maintain a patch pattern in gpu constant memory.
+ */
+struct DevicePatchPattern
+{
+    int nbSubparts;                                                             //< patch pattern number of subparts (>0)
+    DevicePatchPatternSubpart subparts[ALICEVISION_DEVICE_PATCH_MAX_SUBPARTS];  //< patch pattern subparts (one similarity per subpart)
+};
+
+
+#endif

@@ -1,0 +1,25 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0d91d2d..8580461 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -52,6 +52,7 @@ include(cmake/geo_detect_platform.cmake)
+ endif()
+ 
+ if(GEOGRAM_WITH_TBB AND NOT TARGET TBB::tbb)
++find_package(TBB)
+ include(cmake/onetbb.cmake)
+ endif()
+ 
+diff --git a/cmake/FindGeogram.cmake b/cmake/FindGeogram.cmake
+index d1cc284..1b7b5ec 100644
+--- a/cmake/FindGeogram.cmake
++++ b/cmake/FindGeogram.cmake
+@@ -60,7 +60,7 @@ find_library (GEOGRAM_GLFW3_LIBRARY
+ 
+ include (FindPackageHandleStandardArgs)
+ find_package_handle_standard_args(
+-  GEOGRAM DEFAULT_MSG GEOGRAM_LIBRARY GEOGRAM_INCLUDE_DIR
++  Geogram DEFAULT_MSG GEOGRAM_LIBRARY GEOGRAM_INCLUDE_DIR
+ )
+ 
+ # Create an imported target for Geogram 

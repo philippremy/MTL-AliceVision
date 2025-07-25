@@ -1,0 +1,28 @@
+#ifndef ROI_INC
+#define ROI_INC
+
+// Small struct describing a 1D range
+struct Range {
+    uint begin;
+    uint end;
+};
+
+uint Range_size(Range range) {
+    return range.end - range.begin;
+}
+
+// Small struct describing a rectangular 2D region of interest
+struct ROI {
+    Range x;
+    Range y;
+};
+
+uint ROI_width(ROI roi) {
+    return Range_size(roi.x);
+}
+
+uint ROI_height(ROI roi) {
+    return Range_size(roi.y);
+}
+
+#endif

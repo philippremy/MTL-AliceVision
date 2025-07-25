@@ -1,0 +1,95 @@
+#ifndef MATRIX
+#define MATRIX
+
+float dist(const vec3 a, const vec3 b)
+{
+    return length(a - b);
+}
+
+float dist(const vec2 a, const vec2 b)
+{
+    return length(a - b);
+}
+
+vec3 M3x3mulV2(const float[9] M3x3, const vec2 V)
+{
+    return vec3(M3x3[0] * V.x + M3x3[3] * V.y + M3x3[6],
+                M3x3[1] * V.x + M3x3[4] * V.y + M3x3[7],
+                M3x3[2] * V.x + M3x3[5] * V.y + M3x3[8]);
+}
+
+vec3 M3x4mulV3(const float[12] M3x4, const vec3 V)
+{
+    return vec3(M3x4[0] * V.x + M3x4[3] * V.y + M3x4[6] * V.z + M3x4[9],
+                M3x4[1] * V.x + M3x4[4] * V.y + M3x4[7] * V.z + M3x4[10],
+                M3x4[2] * V.x + M3x4[5] * V.y + M3x4[8] * V.z + M3x4[11]);
+}
+
+vec3 linePlaneIntersect(const vec3 linePoint,
+    const vec3 lineVect,
+    const vec3 planePoint,
+    const vec3 planeNormal)
+{
+    const float k = (dot(planePoint, planeNormal) - dot(planeNormal, linePoint)) / dot(planeNormal, lineVect);
+    return linePoint + lineVect * k;
+}
+
+vec2 project3DPoint(const float[12] M3x4, const vec3 V)
+{
+    // without optimization
+    // const float3 p = M3x4mulV3(M3x4, V);
+    // return make_float2(p.x / p.z, p.y / p.z);
+
+    vec3 p = M3x4mulV3(M3x4, V);
+    const float pzInv = 1.0f / p.z;
+    return vec2(p.x * pzInv, p.y * pzInv);
+}
+
+float pointLineDistance3D(const vec3 point, const vec3 linePoint, const vec3 lineVectNormalized)
+{
+    return length(cross(lineVectNormalized, linePoint - point));
+}
+
+vec3 closestPointToLine3D(const vec3 point, const vec3 linePoint, const vec3 lineVectNormalized)
+{
+    return linePoint + lineVectNormalized * dot(lineVectNormalized, point - linePoint);
+}
+
+/**
+ * @brief Sigmoid function filtering
+ * @note f(x) = min + (max-min) * \frac{1}{1 + e^{10 * (x - mid) / width}}
+ * @see https://www.desmos.com/calculator/1qvampwbyx
+ */
+float sigmoid(float zeroVal, float endVal, float sigwidth, float sigMid, float xval)
+{
+    return zeroVal + (endVal - zeroVal) * (1.0f / (1.0f + exp(10.0f * ((xval - sigMid) / sigwidth))));
+}
+
+/**
+ * @brief Sigmoid function filtering
+ * @note f(x) = min + (max-min) * \frac{1}{1 + e^{10 * (mid - x) / width}}
+ */
+float sigmoid2(float zeroVal, float endVal, float sigwidth, float sigMid, float xval)
+{
+    return zeroVal + (endVal - zeroVal) * (1.0f / (1.0f + exp(10.0f * ((sigMid - xval) / sigwidth))));
+}
+
+float angleBetwABandAC(const vec3 A, const vec3 B, const vec3 C)
+{
+    vec3 V1 = B - A;
+    vec3 V2 = C - A;
+
+    V1 = normalize(V1);
+    V2 = normalize(V2);
+
+    const float x = float(V1.x * V2.x + V1.y * V2.y + V1.z * V2.z);
+    float a = acos(x);
+    a = isinf(a) ? 0.0 : a;
+    return float(abs(a) / (3.14159265359 / 180.0));
+}
+
+float copysignf(float x, float y) {
+    return abs(x) * sign(y);
+}
+
+#endif

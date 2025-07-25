@@ -1,0 +1,42 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// The output slice (uint32_t)
+layout(r32ui, set = 0, binding = 0) uniform writeonly uimage2D slice_d;
+
+// The input slice (unsigned char aka uint8_t)
+layout(r8ui, set = 0, binding = 1) uniform readonly uimage3D volume_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    ivec3 axisT;
+    ivec3 volDim;
+    int y;
+} pushConstants;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint z = gl_GlobalInvocationID.y;
+
+    int temp[3];
+    temp[pushConstants.axisT.x] = int(x);
+    temp[pushConstants.axisT.y] = pushConstants.y;
+    temp[pushConstants.axisT.z] = int(z);
+
+    ivec3 v = ivec3(temp[0], temp[1], temp[2]);
+
+    if (int(x) >= pushConstants.volDim[pushConstants.axisT.x] || int(z) >= pushConstants.volDim[pushConstants.axisT.z])
+        return;
+
+    // Always returns vec4, but we only use the x value as the rest is 0.
+    const uvec4 volume_xyz = imageLoad(volume_d, v);
+
+    // Store it in the output slice
+    imageStore(slice_d, ivec2(x, z), volume_xyz);
+
+}

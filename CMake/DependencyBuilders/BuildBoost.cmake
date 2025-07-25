@@ -1,0 +1,101 @@
+# Utility to build a simple OpenMP library from source
+
+macro(build_boost)
+
+    set(CURRENT_DEPENDENCY Boost)
+
+    # Create Logging Folder
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}")
+
+    set(DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}")
+    set(DEPENDENCY_LOG_DIR "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}")
+    set(DEPENDENCY_GIT_HEAD "${DEPENDENCY_DIR}/.git/HEAD")
+
+    # Only fetch if needed
+    if(NOT EXISTS "${DEPENDENCY_GIT_HEAD}")
+        # Fetch Boost
+        message(STATUS "[AliceVision] Fetching ${CURRENT_DEPENDENCY}...")
+        execute_process(COMMAND ${GIT_EXECUTABLE}
+            clone --depth 1 --recursive
+            https://github.com/boostorg/boost.git
+            "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}"
+            RESULT_VARIABLE GIT_RESULT_${CURRENT_DEPENDENCY}
+            OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/GIT_STDOUT.log"
+            ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/GIT_STDERR.log"
+        )
+        if(NOT ${GIT_RESULT_${CURRENT_DEPENDENCY}} EQUAL 0)
+            message(FATAL_ERROR "[AliceVision] Failed to fetch ${CURRENT_DEPENDENCY}. Check ${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/GIT_STDERR.log for more information.")
+        endif()
+    endif()
+
+    # Create Build Directory
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build")
+
+    # Configure
+    message(STATUS "[AliceVision] Configuring ${CURRENT_DEPENDENCY}...")
+    execute_process(COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
+        -DCMAKE_BUILD_TYPE=Release
+        "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+        "-DBOOST_INCLUDE_LIBRARIES=${ALICEVISION_BOOST_COMPONENTES}"
+        -DBOOST_CONTEXT_ARCHITECTURE=combined
+        -DBOOST_INSTALL_LAYOUT=system
+        -DBOOST_STACKTRACE_USE_WINDBG=ON
+        -DBOOST_STACKTRACE_USE_BACKTRACE=OFF
+        -DBOOST_STACKTRACE_USE_ADDR2LINE=OFF
+        -DBOOST_STACKTRACE_USE_NOOP=OFF
+        -DBOOST_STACKTRACE_USE_WINDBG_CACHED=OFF
+        -DBOOST_STACKTRACE_ENABLE_FROM_EXCEPTION=OFF
+        -DBUILD_SHARED_LIBS=ON
+        -G "${CMAKE_GENERATOR}"
+        ..
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+        RESULT_VARIABLE CONFIGURE_RESULT_${CURRENT_DEPENDENCY}
+        OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/CMAKE_STDOUT.log"
+        ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/CMAKE_STDERR.log"
+    )
+    if(NOT ${CONFIGURE_RESULT_${CURRENT_DEPENDENCY}} EQUAL 0)
+        message(FATAL_ERROR "[AliceVision] Failed to configure ${CURRENT_DEPENDENCY}. Check ${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/CMAKE_STDERR.log for more information.")
+    endif()
+
+    # Build
+    message(STATUS "[AliceVision] Building ${CURRENT_DEPENDENCY}...")
+    execute_process(COMMAND ${CMAKE_COMMAND}
+        --build .
+        -j${NCPUs}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+        RESULT_VARIABLE BUILD_RESULT_${CURRENT_DEPENDENCY}
+        OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/BUILD_STDOUT.log"
+        ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/BUILD_STDERR.log"
+    )
+    if(NOT ${BUILD_RESULT_${CURRENT_DEPENDENCY}} EQUAL 0)
+        message(FATAL_ERROR "[AliceVision] Failed to build ${CURRENT_DEPENDENCY}. Check ${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/BUILD_STDERR.log for more information.")
+    endif()
+
+    # Install (aka copy)
+    message(STATUS "[AliceVision] Installing ${CURRENT_DEPENDENCY}...")
+    execute_process(COMMAND ${CMAKE_COMMAND}
+        --install .
+        --strip
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+        RESULT_VARIABLE INSTALL_RESULT_${CURRENT_DEPENDENCY}
+        OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/INSTALL_STDOUT.log"
+        ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/INSTALL_STDERR.log"
+    )
+    if(NOT ${INSTALL_RESULT_${CURRENT_DEPENDENCY}} EQUAL 0)
+        message(FATAL_ERROR "[AliceVision] Failed to install ${CURRENT_DEPENDENCY}. Check ${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/INSTALL_STDERR.log for more information.")
+    endif()
+
+    # Find BoostConfig and set Boost_DIR
+    file(GLOB_RECURSE ${CURRENT_DEPENDENCY}_CONFIG "${CMAKE_SOURCE_DIR}/External/Products/lib/cmake/${CURRENT_DEPENDENCY}Config.cmake")
+    if(${CURRENT_DEPENDENCY}_CONFIG)
+        get_filename_component(SUBFOLDER_PATH "${${CURRENT_DEPENDENCY}_CONFIG}" DIRECTORY)
+        # Store in cache
+        set("${CURRENT_DEPENDENCY}_DIR" "${SUBFOLDER_PATH}" CACHE PATH "" FORCE)
+    else()
+        message(FATAL_ERROR "Could not find CMake Configuration file for ${CURRENT_DEPENDENCY}. Please submit a bug report.")
+    endif()
+
+    message(STATUS "[AliceVision] Made dependency ${CURRENT_DEPENDENCY} available.")
+
+endmacro()

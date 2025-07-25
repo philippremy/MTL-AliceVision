@@ -1,0 +1,119 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+#include "definitions.comp"
+#include "DeviceCameraParams.comp"
+#include "Matrix.comp"
+#include "ROI.comp"
+
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+
+// The output depth thickness map
+layout(rg32f, set = 0, binding = 0) uniform image2D out_sgmDepthThicknessMap_d;
+
+// The output depth similiarity map
+layout(rg32f, set = 0, binding = 1) uniform image2D out_sgmDepthSimMap_d;
+
+// The input depth map
+layout(r32f, set = 0, binding = 2) uniform readonly image2D in_depths_d;
+
+// The input volume similiarity
+layout(r8ui, set = 0, binding = 3) uniform readonly uimage3D in_volSim_d;
+
+// Device Camera Params Array
+layout(set = 0, binding = 4, scalar) uniform DeviceCameraParamsConstant {
+    DeviceCameraParams cameraParams[ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS];
+} constantCameraParametersArray_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    int rcDeviceCameraParamsId;
+    int volDimZ;
+    int scaleStep;
+    float thicknessMultFactor;
+    float maxSimilarity;
+    Range depthRange;
+    ROI roi;
+} pushConstants;
+
+float depthPlaneToDepth(const DeviceCameraParams deviceCamParams,
+    const float fpPlaneDepth,
+    const vec2 pix)
+{
+    const vec3 planep = deviceCamParams.C + deviceCamParams.ZVect * fpPlaneDepth;
+    vec3 v = M3x3mulV2(deviceCamParams.iP, pix);
+    v = normalize(v);
+    vec3 p = linePlaneIntersect(deviceCamParams.C, v, planep, deviceCamParams.ZVect);
+    return length(deviceCamParams.C - p);
+}
+
+void main() {
+
+    uint vx = gl_GlobalInvocationID.x;
+    uint vy = gl_GlobalInvocationID.y;
+
+    if(vx >= ROI_width(pushConstants.roi) || vy >= ROI_height(pushConstants.roi))
+        return;
+
+    // R camera parameters
+    const DeviceCameraParams rcDeviceCamParams = constantCameraParametersArray_d.cameraParams[pushConstants.rcDeviceCameraParamsId];
+
+    const vec2 pix = vec2((pushConstants.roi.x.begin + vx) * pushConstants.scaleStep, (pushConstants.roi.y.begin + vy) * pushConstants.scaleStep);
+
+    // find the best depth plane index for the current pixel
+    // the best depth plane has the best similarity value
+    // - best possible similarity value is 0
+    // - worst possible similarity value is 254
+    // - invalid similarity value is 255
+    float bestSim = 255.f;
+    int bestZIdx = -1;
+
+    for(int vz = int(pushConstants.depthRange.begin); vz < int(pushConstants.depthRange.end); ++vz)
+    {
+        // imageLoad always returns a vec4, but only 1 value is stored, so only use x!
+        const float simAtZ = imageLoad(in_volSim_d, ivec3(vx, vy, vz)).x;
+
+        if(simAtZ < bestSim)
+        {
+            bestSim = simAtZ;
+            bestZIdx = vz;
+        }
+    }
+
+    // filtering out invalid values and values with a too bad score (above the user maximum similarity threshold)
+    // note: this helps to reduce following calculations and also the storage volume of the depth maps.
+    if((bestZIdx == -1) || (bestSim > pushConstants.maxSimilarity))
+    {
+        imageStore(out_sgmDepthThicknessMap_d, ivec2(vx, vy), vec4(-1.f, -1.f, 0.0, 0.0));
+        imageStore(out_sgmDepthSimMap_d, ivec2(vx, vy), vec4(-1.f, -1.f, 0.0, 0.0));
+        return;
+    }
+
+    // find best depth plane previous and next indexes
+    const int bestZIdx_m1 = max(0, bestZIdx - 1);           // best depth plane previous index
+    const int bestZIdx_p1 = min(pushConstants.volDimZ - 1, bestZIdx + 1); // best depth plane next index
+
+    vec3 depthPlanes = vec3(0.0, 0.0, 0.0);
+    depthPlanes.x = imageLoad(in_depths_d, ivec2(bestZIdx_m1, 0)).x;  // best depth previous plane
+    depthPlanes.y = imageLoad(in_depths_d, ivec2(bestZIdx, 0)).x;     // best depth plane
+    depthPlanes.z = imageLoad(in_depths_d, ivec2(bestZIdx_p1, 0)).x;  // best depth next plane
+
+    const float bestDepth    = depthPlaneToDepth(rcDeviceCamParams, depthPlanes.y, pix); // best depth
+    const float bestDepth_m1 = depthPlaneToDepth(rcDeviceCamParams, depthPlanes.x, pix); // previous best depth
+    const float bestDepth_p1 = depthPlaneToDepth(rcDeviceCamParams, depthPlanes.z, pix); // next best depth
+
+    // Interpolation is disabled by default
+    const float out_bestDepth = bestDepth;
+    const float out_bestSim = (bestSim / 255.0f) * 2.0f - 1.0f; // convert from (0, 255) to (-1, +1)
+
+    // compute output best depth thickness
+    // thickness is the maximum distance between output best depth and previous or next depth
+    // thickness can be inflate with thicknessMultFactor
+    const float out_bestDepthThickness = max(bestDepth_p1 - out_bestDepth, out_bestDepth - bestDepth_m1) * pushConstants.thicknessMultFactor;
+
+    imageStore(out_sgmDepthThicknessMap_d, ivec2(vx, vy), vec4(out_bestDepth, out_bestDepthThickness, 0.0, 0.0));
+    imageStore(out_sgmDepthSimMap_d, ivec2(vx, vy), vec4(out_bestDepth, out_bestSim, 0.0, 0.0));
+
+}

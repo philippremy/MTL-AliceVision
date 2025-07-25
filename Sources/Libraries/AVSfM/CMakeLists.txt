@@ -1,0 +1,104 @@
+# Headers
+set(sfm_files_headers
+    pipeline/global/GlobalSfMRotationAveragingSolver.hpp
+    pipeline/global/GlobalSfMTranslationAveragingSolver.hpp
+    pipeline/global/MutexSet.hpp
+    pipeline/global/ReconstructionEngine_globalSfM.hpp
+    pipeline/global/reindexGlobalSfM.hpp
+    pipeline/global/TranslationTripletKernelACRansac.hpp
+    pipeline/localization/SfMLocalizer.hpp
+    pipeline/sequential/ReconstructionEngine_sequentialSfM.hpp
+    pipeline/ReconstructionEngine.hpp
+    pipeline/RigSequence.hpp
+    pipeline/pairwiseMatchesIO.hpp
+    pipeline/RelativePoseInfo.hpp
+    pipeline/structureFromKnownPoses/StructureEstimationFromKnownPoses.hpp
+    pipeline/panorama/ReconstructionEngine_panorama.hpp
+    pipeline/bootstrapping/EstimateAngle.hpp
+    pipeline/bootstrapping/PairsScoring.hpp
+    pipeline/bootstrapping/Bootstrap.hpp
+    pipeline/expanding/SfmTriangulation.hpp
+    pipeline/expanding/SfmResection.hpp
+    pipeline/expanding/SfmBundle.hpp
+    pipeline/expanding/ExpansionHistory.hpp
+    pipeline/expanding/ExpansionChunk.hpp
+    pipeline/expanding/ExpansionIteration.hpp
+    pipeline/expanding/ExpansionPostProcess.hpp
+    pipeline/expanding/ExpansionPostProcessRig.hpp
+    pipeline/expanding/ExpansionPolicy.hpp
+    pipeline/expanding/ExpansionPolicyLegacy.hpp
+    pipeline/expanding/ExpansionProcess.hpp
+    pipeline/expanding/ConnexityGraph.hpp
+    pipeline/expanding/LbaPolicy.hpp
+    pipeline/expanding/LbaPolicyConnexity.hpp
+    pipeline/regionsIO.hpp
+    FrustumFilter.hpp
+    filters.hpp
+    generateReport.hpp
+    sfm.hpp
+    sfmFilters.hpp
+    sfmStatistics.hpp
+    sfmTriangulation.hpp
+)
+
+# Sources
+set(sfm_files_sources
+    pipeline/global/GlobalSfMRotationAveragingSolver.cpp
+    pipeline/global/GlobalSfMTranslationAveragingSolver.cpp
+    pipeline/global/ReconstructionEngine_globalSfM.cpp
+    pipeline/localization/SfMLocalizer.cpp
+    pipeline/sequential/ReconstructionEngine_sequentialSfM.cpp
+    pipeline/ReconstructionEngine.cpp
+    pipeline/RigSequence.cpp
+    pipeline/RelativePoseInfo.cpp
+    pipeline/structureFromKnownPoses/StructureEstimationFromKnownPoses.cpp
+    pipeline/panorama/ReconstructionEngine_panorama.cpp
+    pipeline/bootstrapping/EstimateAngle.cpp
+    pipeline/bootstrapping/PairsScoring.cpp
+    pipeline/bootstrapping/Bootstrap.cpp
+    pipeline/expanding/SfmTriangulation.cpp
+    pipeline/expanding/SfmResection.cpp
+    pipeline/expanding/SfmBundle.cpp
+    pipeline/expanding/ExpansionHistory.cpp
+    pipeline/expanding/ExpansionChunk.cpp
+    pipeline/expanding/ExpansionIteration.cpp
+    pipeline/expanding/ExpansionPolicyLegacy.cpp
+    pipeline/expanding/ExpansionPostProcessRig.cpp
+    pipeline/expanding/ExpansionProcess.cpp
+    pipeline/expanding/ConnexityGraph.cpp
+    pipeline/expanding/LbaPolicyConnexity.cpp
+    pipeline/regionsIO.cpp
+    FrustumFilter.cpp
+    generateReport.cpp
+    sfmFilters.cpp
+    sfmStatistics.cpp
+    sfmTriangulation.cpp
+)
+
+alicevision_add_library(AVSfM
+    SOURCES ${sfm_files_sources}
+    HEADERS ${sfm_files_headers}
+    PUBLIC_LINKS
+        AVCamera
+        AVDataIO
+        AVFeature
+        AVGeometry
+        AVGraph
+        AVLinearProgramming
+        AVLInfinityCV
+        AVMatching
+        AVMultiview
+        AVNumeric
+        AVSfMBundle
+        AVSfMData
+        AVSfMDataIO
+        AVSfMUtils
+        AVSystem
+        AVTrack
+        Boost::boost
+    PRIVATE_LINKS
+        ${LEMON_LIBRARY}
+)
+
+# Unit tests
+add_subdirectory(Tests/pipeline)

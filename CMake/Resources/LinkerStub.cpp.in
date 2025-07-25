@@ -1,0 +1,8 @@
+//
+// Created by Philipp Remy on 09.07.25.
+//
+
+#include <@UMBRELLA_HEADER@>
+
+// Force link the source file
+extern "C" void @library_name@_FORCE_LINK() {}

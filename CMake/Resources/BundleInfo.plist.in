@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.aliceVision.@BUNDLE_NAME@</string>
+	<key>CFBundleIconFile</key>
+	<string>@ICON_FILE@</string>
+	<key>NSHumanReadableCopyright</key>
+        <string>Copyright © 2018 - Present AliceVision Contributors</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>@BUNDLE_NAME@</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>@SHORT_VERSION@</string>
+	<key>DTCompiler</key>
+	<string>com.apple.compilers.llvm.clang.1_0</string>
+	<key>DTPlatformName</key>
+	<string>macosx</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>@OSX_DEPLOYMENT_MINIMUM@</string>
+</dict>
+</plist>

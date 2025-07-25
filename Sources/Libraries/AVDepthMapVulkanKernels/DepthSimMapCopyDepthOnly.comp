@@ -1,0 +1,37 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// Output depth similarity map
+layout(rg32f, set = 0, binding = 0) uniform image2D out_deptSimMap_d;
+
+// Input depth similarity map
+layout(rg32f, set = 0, binding = 1) uniform readonly image2D in_depthSimMap_d;
+
+// The shader arguments
+layout(push_constant, scalar) uniform PushConstants {
+    float defaultSim;
+} pushConstants;
+
+void main() {
+
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    // Output image width
+    ivec2 out_imageWidth = imageSize(out_deptSimMap_d);
+
+    if(x >= out_imageWidth.x || y >= out_imageWidth.y)
+        return;
+
+    // NOTE: imageLoad returns vec4, however, we store only 2 components, so only use x and y!
+    vec4 out_depthSim = imageLoad(out_deptSimMap_d, ivec2(x, y));
+    out_depthSim.x = imageLoad(in_depthSimMap_d, ivec2(x, y)).x;
+    out_depthSim.y = pushConstants.defaultSim;
+
+    imageStore(out_deptSimMap_d, ivec2(x, y), out_depthSim);
+
+}
