@@ -21,7 +21,6 @@
 #include <AVSfM/pipeline/relativePoses.hpp>
 #include <AVSfMData/SfMData.hpp>
 #include <AVSfMDataIO/sfmDataIO.hpp>
-#include <AVSfM/bootstraping.hpp>
 #include <AVSystem/Logger.hpp>
 #include <AVSystem/main.hpp>
 #include <AVCMDLine/cmdline.hpp>
@@ -30,7 +29,7 @@
 #include <AVTrack/trackIO.hpp>
 #include <AVTrack/TracksHandler.hpp>
 
-#include <aliceVision/mesh/MeshIntersection.hpp>
+#include <AVMesh/MeshIntersection.hpp>
 
 #include <AVDataIO/json.hpp>
 #include <AVSfM/pipeline/bootstrapping/PairsScoring.hpp>
@@ -60,7 +59,7 @@ namespace fs = boost::filesystem;
 */
 bool landmarksFromMesh(
                         sfmData::Landmarks & landmarks,
-                        const sfmData::SfMData & sfmData, 
+                        const sfmData::SfMData & sfmData,
                         const std::string & meshFilename,
                         const std::set<IndexT> referenceViewIds,
                         const track::TracksHandler& tracksHandler)
@@ -72,7 +71,7 @@ bool landmarksFromMesh(
     {
         return EXIT_FAILURE;
     }
-    
+
     for (const auto referenceViewId: referenceViewIds)
     {
         const sfmData::View & v = sfmData.getView(referenceViewId);
@@ -88,7 +87,7 @@ bool landmarksFromMesh(
         {
             const track::Track & track = tracksMap.at(trackId);
             const track::TrackItem & refItem = track.featPerView.at(referenceViewId);
-            
+
             const Vec2 refpt = track.featPerView.at(referenceViewId).coords;
             const std::size_t featureId = track.featPerView.at(referenceViewId).featureId;
             const double scale = track.featPerView.at(referenceViewId).scale;
@@ -125,7 +124,7 @@ int aliceVision_main(int argc, char** argv)
     double minAngle = 5.0;
     double maxAngle = 40.0;
     std::pair<std::string, std::string> initialPairString("", "");
-    
+
     std::set<IndexT> firstViewFilters;
     IndexT secondViewFilter = UndefinedIndexT;
 
@@ -158,7 +157,7 @@ int aliceVision_main(int argc, char** argv)
     // set maxThreads
     HardwareContext hwc = cmdline.getHardwareContext();
     omp_set_num_threads(hwc.getMaxThreads());
-    
+
     // load input SfMData scene
     sfmData::SfMData sfmData;
     if(!sfmDataIO::load(sfmData, sfmDataFilename, sfmDataIO::ESfMData::ALL))
@@ -166,7 +165,7 @@ int aliceVision_main(int argc, char** argv)
         ALICEVISION_LOG_ERROR("The input SfMData file '" + sfmDataFilename + "' cannot be read.");
         return EXIT_FAILURE;
     }
-    
+
 
 
     if (sfmData.getValidViews().size() >= 2 && meshFilename.empty())
@@ -174,7 +173,7 @@ int aliceVision_main(int argc, char** argv)
         ALICEVISION_LOG_INFO("SfmData has already an initialization");
         return EXIT_SUCCESS;
     }
-    
+
 
 
     if (!initialPairString.first.empty() || !initialPairString.second.empty())
@@ -246,18 +245,18 @@ int aliceVision_main(int argc, char** argv)
     bool useMesh = false;
     sfmData::Landmarks landmarks;
     if (!meshFilename.empty() && !firstViewFilters.empty())
-    {        
+    {
         if (!landmarksFromMesh(landmarks, sfmData, meshFilename, firstViewFilters, tracksHandler))
         {
             return EXIT_FAILURE;
         }
-            
+
         useMesh = true;
     }
 
     //Result of pair estimations are stored in multiple files
     std::vector<sfm::ReconstructedPair> reconstructedPairs;
-    const std::regex regex("pairs\\_[0-9]+\\.json");
+    const std::regex regex("pairs_[0-9]+\\.json");
     for(fs::directory_entry & file : boost::make_iterator_range(fs::directory_iterator(pairsDirectory), {}))
     {
         if (!std::regex_search(file.path().string(), regex))
@@ -265,14 +264,14 @@ int aliceVision_main(int argc, char** argv)
             continue;
         }
 
-        std::ifstream inputfile(file.path().string());        
+        std::ifstream inputfile(file.path().string());
 
         boost::system::error_code ec;
         std::vector<boost::json::value> values = readJsons(inputfile, ec);
         for (const boost::json::value & value : values)
         {
             std::vector<sfm::ReconstructedPair> localVector = boost::json::value_to<std::vector<sfm::ReconstructedPair>>(value);
-          
+
             for (const auto & pair: localVector)
             {
                 // One of the view must match one of the first view filters
@@ -324,8 +323,8 @@ int aliceVision_main(int argc, char** argv)
     std::set<IndexT> filterIn;
     std::set<IndexT> filterOut;
 
-    IndexT bestPairId = findBestPair(sfmData, reconstructedPairs,  
-                            tracksHandler.getAllTracks(), tracksHandler.getTracksPerView(), 
+    IndexT bestPairId = findBestPair(sfmData, reconstructedPairs,
+                            tracksHandler.getAllTracks(), tracksHandler.getTracksPerView(),
                             filterIn, filterOut,
                             minAngle, maxAngle);
 
@@ -334,24 +333,24 @@ int aliceVision_main(int argc, char** argv)
         ALICEVISION_LOG_INFO("No valid pair");
         return EXIT_FAILURE;
     }
-    
+
     bestPair = reconstructedPairs[bestPairId];
 
     if (useMesh)
     {
-        if (!sfm::bootstrapMesh(sfmData, 
+        if (!sfm::bootstrapMesh(sfmData,
                         landmarks,
-                        bestPair.reference, bestPair.next, 
+                        bestPair.reference, bestPair.next,
                         tracksHandler.getAllTracks(), tracksHandler.getTracksPerView()))
         {
             return EXIT_FAILURE;
         }
     }
-    else 
+    else
     {
-        if (!sfm::bootstrapBase(sfmData, 
-                        bestPair.reference, bestPair.next, 
-                        bestPair.pose, 
+        if (!sfm::bootstrapBase(sfmData,
+                        bestPair.reference, bestPair.next,
+                        bestPair.pose,
                         tracksHandler.getAllTracks(), tracksHandler.getTracksPerView()))
         {
             return EXIT_FAILURE;

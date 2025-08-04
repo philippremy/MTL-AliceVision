@@ -10,17 +10,21 @@
 #include <AVSfMData/SfMData.hpp>
 #include <AVSfMDataIO/sfmDataIO.hpp>
 #include <AVFeature/imageDescriberCommon.hpp>
+#include <AVFeature/ImageDescriber.hpp>
 #include <AVFeature/feature.hpp>
 #if ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_POPSIFT) || ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_CCTAG)
     #define ALICEVISION_HAVE_GPU_FEATURES
     #include <AVGPU/gpu.hpp>
 #endif
+#include <AVImage/colorspace.hpp>
 #include <AVSystem/Timer.hpp>
 #include <AVSystem/Logger.hpp>
 #include <AVSystem/main.hpp>
 #include <AVUtils/filesIO.hpp>
 #include <AVCMDLine/cmdline.hpp>
 
+#include <boost/program_options/config.hpp>
+#include <boost/program_options/version.hpp>
 #include <boost/program_options.hpp>
 
 #include <filesystem>

@@ -6,7 +6,6 @@
 
 #include <AVSfMData/SfMData.hpp>
 #include <AVSfMDataIO/sfmDataIO.hpp>
-#include <AVSfM/expanding.hpp>
 #include <AVSystem/Logger.hpp>
 #include <AVSystem/main.hpp>
 #include <AVCMDLine/cmdline.hpp>
@@ -14,6 +13,15 @@
 #include <AVTrack/TracksHandler.hpp>
 
 #include <AVMesh/MeshIntersection.hpp>
+#include <AVSfM/pipeline/expanding/PointFetcher.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionHistory.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionPolicy.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionPolicyLegacy.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionChunk.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionIteration.hpp>
+#include <AVSfM/pipeline/expanding/ExpansionProcess.hpp>
+#include <AVSfM/pipeline/expanding/LbaPolicy.hpp>
+#include <AVSfM/pipeline/expanding/LbaPolicyConnexity.hpp>
 
 #include <boost/program_options.hpp>
 
@@ -26,7 +34,7 @@ using namespace aliceVision;
 
 namespace po = boost::program_options;
 
-//This intermediate class is used as a proxy to not link 
+//This intermediate class is used as a proxy to not link
 //sfm with mesh library
 class MeshPointFetcher : public sfm::PointFetcher
 {
@@ -55,11 +63,11 @@ public:
      * @param normal result normal in some global coordinates frame
      * @param intrinsic the camera intrinsic object
      * @param imageCoords the input image pixel coordinates in 2D.
-     * @return false on error 
+     * @return false on error
     */
-    bool pickPointAndNormal(Vec3 & point, 
-                                Vec3 & normal, 
-                                const camera::IntrinsicBase & intrinsic, 
+    bool pickPointAndNormal(Vec3 & point,
+                                Vec3 & normal,
+                                const camera::IntrinsicBase & intrinsic,
                                 const Vec2 & imageCoords) override
     {
         return _mi.pickPointAndNormal(point, normal, intrinsic, imageCoords);
@@ -137,7 +145,7 @@ int aliceVision_main(int argc, char** argv)
     ("meshFilename,t", po::value<std::string>(&meshFilename)->default_value(meshFilename), "Mesh file.");
     ;
      // clang-format on
-   
+
     CmdLine cmdline("AliceVision SfM Expanding");
 
     cmdline.add(requiredParams);
@@ -150,7 +158,7 @@ int aliceVision_main(int argc, char** argv)
     // set maxThreads
     HardwareContext hwc = cmdline.getHardwareContext();
     omp_set_num_threads(hwc.getMaxThreads());
-    
+
     // load input SfMData scene
     sfmData::SfMData sfmData;
     if(!sfmDataIO::load(sfmData, sfmDataFilename, sfmDataIO::ESfMData::ALL))
@@ -199,15 +207,15 @@ int aliceVision_main(int argc, char** argv)
     sfm::ExpansionHistory::sptr expansionHistory = std::make_shared<sfm::ExpansionHistory>();
 
     sfm::LbaPolicy::uptr sfmPolicy;
-    
-    if (useLocalBA) 
+
+    if (useLocalBA)
     {
         sfm::LbaPolicyConnexity::uptr sfmPolicyTyped = std::make_unique<sfm::LbaPolicyConnexity>();
         sfmPolicyTyped->setExpansionHistoryHandler(expansionHistory);
         sfmPolicyTyped->setDistanceLimit(lbaDistanceLimit);
         sfmPolicy = std::move(sfmPolicyTyped);
     }
-    
+
     sfm::SfmBundle::uptr sfmBundle = std::make_unique<sfm::SfmBundle>();
     sfmBundle->setLbaPolicyHandler(sfmPolicy);
     sfmBundle->setBundleAdjustmentMaxOutlier(bundleAdjustmentMaxOutliers);
@@ -220,7 +228,7 @@ int aliceVision_main(int argc, char** argv)
     {
         ALICEVISION_LOG_INFO("Load mesh");
         std::unique_ptr<MeshPointFetcher> handler = std::make_unique<MeshPointFetcher>();
-        
+
         if (!handler->initialize(meshFilename))
         {
             return EXIT_FAILURE;
@@ -237,14 +245,14 @@ int aliceVision_main(int argc, char** argv)
     expansionChunk->setTriangulationMinPoints(minNbObservationsForTriangulation);
     expansionChunk->setMinAngleTriangulation(minAngleForTriangulation);
     expansionChunk->setPointFetcherHandler(pointFetcherHandler);
-    
+
     sfm::ExpansionPolicy::uptr expansionPolicy;
     {
         sfm::ExpansionPolicyLegacy::uptr expansionPolicyTyped = std::make_unique<sfm::ExpansionPolicyLegacy>();
         expansionPolicyTyped->setNbFirstUnstableViews(nbFirstUnstableCameras);
         expansionPolicyTyped->setMaxViewsPerGroup(maxImagesPerGroup);
         expansionPolicy = std::move(expansionPolicyTyped);
-    } 
+    }
 
     sfm::ExpansionIteration::uptr expansionIteration = std::make_unique<sfm::ExpansionIteration>();
     expansionIteration->setExpansionHistoryHandler(expansionHistory);
@@ -274,8 +282,8 @@ int aliceVision_main(int argc, char** argv)
     sfmDataIO::save(sfmData, sfmDataOutputFilename, sfmDataIO::ESfMData::ALL);
 
     if (!outputSfMViewsAndPoses.empty())
-    {   
-        sfmDataIO::save(sfmData, outputSfMViewsAndPoses, 
+    {
+        sfmDataIO::save(sfmData, outputSfMViewsAndPoses,
             sfmDataIO::ESfMData(sfmDataIO::VIEWS | sfmDataIO::EXTRINSICS | sfmDataIO::INTRINSICS)
         );
     }
