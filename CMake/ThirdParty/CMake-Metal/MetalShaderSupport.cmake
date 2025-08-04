@@ -33,15 +33,7 @@ function(add_metal_shader_library TARGET)
         )
     endif()
 
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(${TARGET}
-            PRIVATE "-O0"
-        )
-    else()
-        target_compile_options(${TARGET}
-            PRIVATE "-O2"
-        )
-    endif()
+    target_compile_options(${TARGET} PRIVATE "-O3") # MTLCompilerService crashes if no optimization is specified
 
 endfunction()
 

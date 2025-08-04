@@ -117,39 +117,37 @@ alicevision_add_software(AVRelativePoseEstimating
               Boost::json
 )
 
-if (ALICEVISION_BUILD_MVS)
-    # Bootstrapping SfM
-    alicevision_add_software(AVSfMBootstraping
-            SOURCE main_sfmBootstraping.cpp
-            FOLDER ${FOLDER_SOFTWARE_PIPELINE}
-            LINKS AVSystem
-                  AVCMDLine
-                  AVFeature
-                  AVSfM
-                  AVSfMData
-                  AVTrack
-                  AVDataIO
-                  AVMesh
-                  Boost::program_options
-                  Boost::json
-    )
+# Bootstrapping SfM
+alicevision_add_software(AVSfMBootstraping
+        SOURCE main_sfmBootstraping.cpp
+        FOLDER ${FOLDER_SOFTWARE_PIPELINE}
+        LINKS AVSystem
+                AVCMDLine
+                AVFeature
+                AVSfM
+                AVSfMData
+                AVTrack
+                AVDataIO
+                AVMesh
+                Boost::program_options
+                Boost::json
+)
 
-    # Expanding SfM
-    alicevision_add_software(AVSfMExpanding
-            SOURCE main_sfmExpanding.cpp
-            FOLDER ${FOLDER_SOFTWARE_PIPELINE}
-            LINKS AVSystem
-                  AVCMDLine
-                  AVFeature
-                  AVSfM
-                  AVSfMData
-                  AVTrack
-                  AVDataIO
-                  AVMesh
-                  Boost::program_options
-                  Boost::json
-    )
-endif()
+# Expanding SfM
+alicevision_add_software(AVSfMExpanding
+        SOURCE main_sfmExpanding.cpp
+        FOLDER ${FOLDER_SOFTWARE_PIPELINE}
+        LINKS AVSystem
+                AVCMDLine
+                AVFeature
+                AVSfM
+                AVSfMData
+                AVTrack
+                AVDataIO
+                AVMesh
+                Boost::program_options
+                Boost::json
+)
 
 # Global Rotation Estimating
 alicevision_add_software(AVGlobalRotationEstimating

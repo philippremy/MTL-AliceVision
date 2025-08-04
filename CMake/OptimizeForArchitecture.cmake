@@ -570,7 +570,7 @@ macro(OFA_HandleArmOptions)
 endmacro()
 
 macro(OptimizeForArchitecture)
-   message(STATUS "PROC: ${CMAKE_SYSTEM_PROCESSOR}")
+   message(STATUS "[AliceVision] System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
    if("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "(x86|AMD64)")
       set(TARGET_ARCHITECTURE "auto" CACHE STRING "CPU architecture to optimize for. \
 Using an incorrect setting here can result in crashes of the resulting binary because of invalid instructions used. \
@@ -612,4 +612,3 @@ Other supported values are: \"none\", \"generic\", TODO...")
    message(STATUS "[AliceVision] Enabled CPU features: ${Vc_ARCHITECTURE_FLAGS}")
 
 endmacro(OptimizeForArchitecture)
-

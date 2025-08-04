@@ -197,6 +197,9 @@ function(alicevision_add_kernel_library library_name)
             )
         endif()
 
+        # Append to library list
+        set(ALICEVISION_LIBRARIES "${ALICEVISION_LIBRARIES};${library_name}" CACHE INTERNAL "AliceVision Libraries")
+
     elseif("${LIBRARY_LANGUAGE}" STREQUAL "Metal")
 
         add_metal_shader_library(${library_name}
@@ -235,7 +238,7 @@ function(alicevision_add_kernel_library library_name)
 
     set_target_properties(${library_name}
             PROPERTIES SOVERSION "${ALICEVISION_VERSION_MAJOR}.${ALICEVISION_VERSION_MINOR}"
-            VERSION "${ALICEVISION_VERSION_MAJOR}.${ALICEVISION_VERSION_MINOR}.${ALICEVISION_INSTALL_VERSION_REVISION}"
+            VERSION "${ALICEVISION_VERSION_MAJOR}.${ALICEVISION_VERSION_MINOR}.${ALICEVISION_VERSION_REVISION}"
     )
 
     if ((MSVC) AND (MSVC_VERSION GREATER_EQUAL 1914))
@@ -328,9 +331,6 @@ function(alicevision_add_kernel_library library_name)
         endforeach()
 
     endif()
-
-    # Append to library list
-    set(ALICEVISION_LIBRARIES "${ALICEVISION_LIBRARIES};${library_name}" CACHE INTERNAL "AliceVision Libraries")
 
     install(TARGETS ${library_name}
             EXPORT aliceVision-targets
