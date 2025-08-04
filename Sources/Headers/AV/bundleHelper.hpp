@@ -32,7 +32,7 @@ inline std::optional<CFBundleRef> getBundleWithIdentifier(const std::string& ide
         return resolvedBundle;
     }
     CFRelease(bundleName);
-    ALICEVISION_LOG_INFO("Resolved macOS Bundle with identifier: " << identifier);
+    ALICEVISION_LOG_TRACE("Resolved macOS Bundle with identifier: " << identifier);
 #endif
     return std::nullopt;
 }
@@ -69,7 +69,7 @@ inline std::optional<std::string> getResourceFromBundleInternal(CFBundleRef bund
         CFRelease(resourceNameCFString);
         CFRelease(subDirName);
     }
-    ALICEVISION_LOG_INFO("Resolved resource from macOS Bundle: " << resolvedResource);
+    ALICEVISION_LOG_TRACE("Resolved resource from macOS Bundle: " << resolvedResource);
     return resolvedResource;
 #endif
     return std::nullopt;

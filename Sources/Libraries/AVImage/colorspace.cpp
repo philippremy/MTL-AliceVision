@@ -14,9 +14,11 @@
 #include <OpenImageIO/color.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
 
 #include <filesystem>
 #include <vector>
+#include <ranges>
 
 namespace aliceVision {
 namespace image {
@@ -98,17 +100,17 @@ std::string getDefaultColorConfigFilePath()
     char const* ALICEVISION_ROOT = std::getenv("ALICEVISION_ROOT");
     if (ALICEVISION_ROOT == NULL)
     {
-        const std::string configFromSource = getColorConfigFilePathFromSourceCode();
-        if (utils::exists(configFromSource))
-        {
-            ALICEVISION_LOG_DEBUG("ALICEVISION_ROOT is not defined, use embedded OCIO config file from source code: " << configFromSource);
-            return configFromSource;
-        }
         // Try getting it from the macOS bundle
         const auto configFromBundle = getResourceFromBundle(BundleResource::OCIO_PROFILE);
         if(configFromBundle.has_value()) {
             ALICEVISION_LOG_DEBUG("ALICEVISION_ROOT is not defined, use embedded OCIO config file from macOS Bundle: " << configFromBundle.value());
             return configFromBundle.value();
+        }
+        const std::string configFromSource = getColorConfigFilePathFromSourceCode();
+        if (utils::exists(configFromSource))
+        {
+            ALICEVISION_LOG_DEBUG("ALICEVISION_ROOT is not defined, use embedded OCIO config file from source code: " << configFromSource);
+            return configFromSource;
         }
         // Output message with logging before throw as this function could be called before main.
         ALICEVISION_LOG_ERROR("ALICEVISION_ROOT is not defined, embedded OCIO config file cannot be accessed.");
@@ -119,6 +121,12 @@ std::string getDefaultColorConfigFilePath()
 
     if (!utils::exists(configOCIOFilePath))
     {
+        // Try getting it from the macOS bundle
+        const auto configFromBundle = getResourceFromBundle(BundleResource::OCIO_PROFILE);
+        if(configFromBundle.has_value()) {
+            ALICEVISION_LOG_DEBUG("ALICEVISION_ROOT is not defined, use embedded OCIO config file from macOS Bundle: " << configFromBundle.value());
+            return configFromBundle.value();
+        }
         const std::string configFromSource = getColorConfigFilePathFromSourceCode();
         if (utils::exists(configFromSource))
         {
@@ -390,7 +398,9 @@ bool EImageColorSpace_isSupportedOIIOstring(const std::string& colorspace)
 
     std::vector<std::string> knownColorSpaces = {"linear"};
 
-    for (auto cs : ocioConf.getColorSpaceNames())
+    std::vector<std::string> colorSpaces = ocioConf.getColorSpaceNames();
+
+    for (const auto& cs : colorSpaces)
     {
         knownColorSpaces.push_back(boost::to_lower_copy(cs));
         for (auto alias : ocioConf.getAliases(cs))
@@ -399,7 +409,7 @@ bool EImageColorSpace_isSupportedOIIOstring(const std::string& colorspace)
         }
     }
 
-    return (std::find(knownColorSpaces.begin(), knownColorSpaces.end(), boost::to_lower_copy(colorspace)) != knownColorSpaces.end());
+    return std::ranges::find(knownColorSpaces.begin(), knownColorSpaces.end(), boost::to_lower_copy(colorspace)) != knownColorSpaces.end();
 }
 
 std::ostream& operator<<(std::ostream& os, EImageColorSpace dataType) { return os << EImageColorSpace_enumToString(dataType); }

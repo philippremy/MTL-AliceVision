@@ -331,12 +331,20 @@ int aliceVision_main(int argc, char** argv)
             const auto tryBundleResource = getResourceFromBundle(BundleResource::SENSOR_DB);
             if(tryBundleResource)
                 sensorDatabasePath = tryBundleResource.value();
-            ALICEVISION_LOG_WARNING("ALICEVISION_ROOT is not defined, default sensor database cannot be accessed.");
         }
         else
         {
             sensorDatabasePath = root + "/share/aliceVision/cameraSensors.db";
         }
+        if(!utils::exists(sensorDatabasePath))
+        {
+            // On macOS, attempt to resolve via bundle
+            const auto tryBundleResource = getResourceFromBundle(BundleResource::SENSOR_DB);
+            if(tryBundleResource)
+                sensorDatabasePath = tryBundleResource.value();
+        }
+        if(!utils::exists(sensorDatabasePath))
+            ALICEVISION_LOG_WARNING("ALICEVISION_ROOT is not defined, default sensor database cannot be accessed.");
     }
 
     if (!sensorDatabasePath.empty() && !sensorDB::parseDatabase(sensorDatabasePath, sensorDatabase))

@@ -101,11 +101,11 @@ std::string getImageColorSpace(const OIIO::ImageSpec& oiioSpec, const std::strin
     {
         const std::string name = m.name().string();
 
-        if (name.find("oiio:ColorSpace") != name.npos)
+        if (name == "oiio:ColorSpace")
         {
             mapColorSpaces.emplace("oiio:ColorSpace", m.get_string());
         }
-        else if (name.find("AliceVision:ColorSpace") != name.npos)
+        else if (name == "AliceVision:ColorSpace")
         {
             mapColorSpaces.emplace("AliceVision:ColorSpace", m.get_string());
         }
@@ -117,26 +117,27 @@ std::string getImageColorSpace(const OIIO::ImageSpec& oiioSpec, const std::strin
 
     std::string colorSpace = defaultColorSpace;
 
-    if (mapColorSpaces.find("AliceVision:ColorSpace") != mapColorSpaces.end())
+    if (mapColorSpaces.contains("AliceVision:ColorSpace"))
     {
         colorSpace = mapColorSpaces.at("AliceVision:ColorSpace");
     }
-    else if (mapColorSpaces.find("workPlateColourSpace") != mapColorSpaces.end())
+    else if (mapColorSpaces.contains("workPlateColourSpace"))
     {
         colorSpace = mapColorSpaces.at("workPlateColourSpace");
+    }
+    else if (mapColorSpaces.contains("oiio:ColorSpace"))
+    {
+        colorSpace = mapColorSpaces.at("oiio:ColorSpace");
     }
     else if (!colorSpaceFromFileName.empty() && colorSpaceFromFileName != "raw")
     {
         colorSpace = colorSpaceFromFileName;
     }
-    else if (mapColorSpaces.find("oiio:ColorSpace") != mapColorSpaces.end())
-    {
-        colorSpace = mapColorSpaces.at("oiio:ColorSpace");
-    }
 
     ALICEVISION_LOG_TRACE("Detected image color space: " << colorSpace);
 
-    if (!EImageColorSpace_isSupportedOIIOstring(colorSpace))
+    // We don't need to emit a warning if we already assume the default color space
+    if (!EImageColorSpace_isSupportedOIIOstring(colorSpace) && colorSpace != "default")
     {
         colorSpace = defaultColorSpace;
         ALICEVISION_LOG_WARNING("Detected color space " << colorSpace << " is not supported. Set image color space to " << defaultColorSpace);
@@ -537,7 +538,7 @@ oiio::ImageSpec readImageSpec(const std::string& path)
     std::unique_ptr<oiio::ImageInput> in(oiio::ImageInput::open(path, &configSpec));
 
     if (!in)
-        throw std::runtime_error("Can't find/open image file '" + path + "'.");
+        throw std::runtime_error("Can't find/open image file '" + path + "'." + "Error: " + oiio::geterror());
 
     oiio::ImageSpec spec = in->spec();
 
@@ -1417,12 +1418,12 @@ std::string getAliceVisionRoot()
 
 std::string getAliceVisionOCIOConfig()
 {
-    if (!getAliceVisionRoot().empty())
-        return getAliceVisionRoot() + "/share/aliceVision/config.ocio";
     // Try from macOS Bundle
     const auto configFromBundle = getResourceFromBundle(BundleResource::OCIO_PROFILE);
     if(configFromBundle.has_value())
         return configFromBundle.value();
+    if (!getAliceVisionRoot().empty())
+        return getAliceVisionRoot() + "/share/aliceVision/config.ocio";
     return {};
 }
 
