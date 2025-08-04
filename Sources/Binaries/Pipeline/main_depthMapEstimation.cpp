@@ -474,7 +474,34 @@ int aliceVision_main(int argc, char* argv[])
         }
     }
 
+    // On macOS, there is an issue with AutoreleasePools, which is unrelated to the application.
+    // So just exit directly whithout giving the Objective-C runtime to clean up and produce the SIGSEGV.
+    // @SAFETY: This is safe, as exit of the software is immedeate.
+    //
+    // * thread #2, queue = 'com.apple.root.default-qos', stop reason = EXC_BAD_ACCESS (code=1, address=0x10cc0f68)
+    //   frame #0: 0x00007ff815d75a4a libobjc.A.dylib`objc_release + 42
+    //   libobjc.A.dylib`objc_release:
+    //    ->  0x7ff815d75a4a <+42>: movq   0x20(%rdx), %rsi
+    //        0x7ff815d75a4e <+46>: testb  $0x4, %sil
+    //        0x7ff815d75a52 <+50>: je     0x7ff815d75ac6            ; <+166>
+    //        0x7ff815d75a54 <+52>: testb  $0x1, %al
+    //
+    // /* Backtrace */
+    //
+    // * thread #2, queue = 'com.apple.root.default-qos', stop reason = EXC_BAD_ACCESS (code=1, address=0x10cc0f68)
+    // * frame #0: 0x00007ff815d75a4a libobjc.A.dylib`objc_release + 42
+    //   frame #1: 0x00007ff815d7926c libobjc.A.dylib`AutoreleasePoolPage::releaseUntil(objc_object**) + 168
+    //   frame #2: 0x00007ff815d76719 libobjc.A.dylib`objc_autoreleasePoolPop + 227
+    //   frame #3: 0x00007ff815f6801c libdispatch.dylib`_dispatch_last_resort_autorelease_pool_pop + 27
+    //   frame #4: 0x00007ff815f78290 libdispatch.dylib`_dispatch_root_queue_drain + 1093
+    //   frame #5: 0x00007ff815f78768 libdispatch.dylib`_dispatch_worker_thread2 + 170
+    //   frame #6: 0x00007ff816105c0f libsystem_pthread.dylib`_pthread_wqthread + 257
+    //   frame #7: 0x00007ff816104bbf libsystem_pthread.dylib`start_wqthread + 15
+
+    ALICEVISION_LOG_INFO("Task done in (s): " + std::to_string(commandLineTimer.elapsed()));
+    std::_Exit(EXIT_SUCCESS);
+
     #endif
 
-    // ALICEVISION_COMMANDLINE_END
+    ALICEVISION_COMMANDLINE_END
 }
