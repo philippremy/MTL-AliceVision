@@ -7,7 +7,7 @@
 #include <AV/config.hpp>
 #include <AVSystem/Logger.hpp>
 #include <AVCMDLine/cmdline.hpp>
-// #include <AVSystem/main.hpp>
+#include <AVSystem/main.hpp>
 #include <AVSfMData/SfMData.hpp>
 #include <AVSfMDataIO/sfmDataIO.hpp>
 #include <AVMVSUtils/MultiViewParams.hpp>
@@ -16,6 +16,7 @@
 #include <AVDepthMap/DepthMapParams.hpp>
 #include <AVDepthMap/SgmParams.hpp>
 #include <AVDepthMap/RefineParams.hpp>
+#include <AVGPU/gpu.hpp>
 
 #if ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_METAL)
 #include <AVDepthMap/Metal/host/DeviceManager.hpp>
@@ -52,9 +53,9 @@ int computeDownscale(const mvsUtils::MultiViewParams& mp, int scale, int maxWidt
     return downscale;
 }
 
-int main(int argc, char* argv[])
+int aliceVision_main(int argc, char* argv[])
 {
-    // ALICEVISION_COMMANDLINE_START
+    ALICEVISION_COMMANDLINE_START
 
     std::string sfmDataFilename;
     std::string outputFolder;
@@ -254,6 +255,8 @@ int main(int argc, char* argv[])
     ALICEVISION_LOG_INFO(gpu::gpuInformationCUDA());
     #elif ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_VULKAN)
     ALICEVISION_LOG_INFO(gpu::gpuInformationVulkan());
+    #elif ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_METAL)
+    ALICEVISION_LOG_INFO(gpu::gpuInformationMTL());
     #endif
 
     // check if the gpu support CUDA compute capability 2.0
@@ -267,6 +270,12 @@ int main(int argc, char* argv[])
     if (!gpu::gpuSupportVulkan())
     {
      ALICEVISION_LOG_ERROR("This program needs a CUDA-Enabled GPU (with at least compute capability 2.0).");
+     return EXIT_FAILURE;
+    }
+    #elif ALICEVISION_IS_DEFINED(ALICEVISION_HAVE_METAL)
+    if (!gpu::gpuSupportMTL())
+    {
+     ALICEVISION_LOG_ERROR("This program needs a Metal-Enabled GPU.");
      return EXIT_FAILURE;
     }
     #endif
