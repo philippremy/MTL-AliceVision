@@ -16,6 +16,7 @@ endforeach()
 # Frameworks are assumed to have the same binary name like their folder name
 file(GLOB BUNDLE_LIBRARIES "${BUNDLE}/Contents/Frameworks/*.dylib")
 file(GLOB BUNDLE_FRAMEWORKS "${BUNDLE}/Contents/Frameworks/*.framework")
+file(GLOB_RECURSE BUNDLE_PLUGINS "${BUNDLE}/Contents/PlugIns/**/*.dylib")
 # Filter out symlinks
 set(BUNDLE_LIBRARIES_NOSYMLINKS)
 foreach(FILE IN LISTS BUNDLE_LIBRARIES)
@@ -29,10 +30,18 @@ foreach(FILE IN LISTS BUNDLE_FRAMEWORKS)
     get_filename_component(FRAMEWORK_NAME "${FILE}" NAME_WE)
     list(APPEND BUNDLE_FRAMEWORKS_EXECUTABLES "${FILE}/Versions/Current/${FRAMEWORK_NAME}")
 endforeach()
+# Filter out symlinks
+set(BUNDLE_PLUGINS_NOSYMLINKS)
+foreach(FILE IN LISTS BUNDLE_PLUGINS)
+    if(NOT IS_SYMLINK "${FILE}")
+        list(APPEND BUNDLE_PLUGINS_NOSYMLINKS "${FILE}")
+    endif()
+endforeach()
 # Join the lists
 set(BUNDLE_LIBRARIES_FRAMEWORKS)
 list(APPEND BUNDLE_LIBRARIES_FRAMEWORKS ${BUNDLE_LIBRARIES_NOSYMLINKS})
 list(APPEND BUNDLE_LIBRARIES_FRAMEWORKS ${BUNDLE_FRAMEWORKS_EXECUTABLES})
+list(APPEND BUNDLE_LIBRARIES_FRAMEWORKS ${BUNDLE_PLUGINS_NOSYMLINKS})
 
 # BROKEN! Does not include all required dependencies!
 #file(GET_RUNTIME_DEPENDENCIES
@@ -73,7 +82,10 @@ foreach(FILE IN LISTS BUNDLE_LIBRARIES_FRAMEWORKS BUNDLE_BINARIES_NOSYMLINKS)
     list(APPEND GLOBAL_RPATHS "${EXTRACTED_RPATH_PATHS}")
 endforeach()
 # Remove duplicates
+cmake_policy(PUSH)
+cmake_policy(SET CMP0007 NEW)
 list(REMOVE_DUPLICATES GLOBAL_RPATHS)
+cmake_policy(POP)
 
 # Remove rpaths which do not exist
 set(VALID_GLOBAL_RPATHS)
@@ -88,7 +100,7 @@ set(GLOBAL_REQUIRED_LIBS)
 foreach(FILE IN LISTS BUNDLE_LIBRARIES_FRAMEWORKS BUNDLE_BINARIES_NOSYMLINKS)
 
     execute_process(
-            COMMAND /bin/sh -c "otool -L \"${FILE}\" | tail -n +2"
+            COMMAND /bin/sh -c "otool -L \"${FILE}\" | tail -n +3"
             OUTPUT_VARIABLE REQUIERED_LIBS_UNFILTERED
             OUTPUT_STRIP_TRAILING_WHITESPACE
     )
@@ -205,7 +217,25 @@ endforeach()
 
 # Copy all the dependencies into the bundle
 foreach(DEPENDENCY IN LISTS DEPENDENCY_PATHS_FILTERED)
-    file(COPY "${DEPENDENCY}" DESTINATION "${BUNDLE}/Contents/Libraries" FOLLOW_SYMLINK_CHAIN)
+
+    # Detect if the dependency is inside a .framework
+    string(FIND "${DEPENDENCY}" ".framework/" FRAMEWORK_INDEX)
+
+    if(NOT FRAMEWORK_INDEX EQUAL -1)
+        # It's a framework — extract root path (e.g., /path/to/Foo.framework)
+        string(REGEX MATCH ".+\\.framework" FRAMEWORK_ROOT "${DEPENDENCY}")
+
+        # Copy entire framework directory
+        execute_process(COMMAND rsync
+            -a
+            "${FRAMEWORK_ROOT}"
+            "${BUNDLE}/Contents/Libraries"
+        )
+    else()
+        # It's a regular shared library (.dylib) — copy as-is
+        file(COPY "${DEPENDENCY}" DESTINATION "${BUNDLE}/Contents/Libraries" FOLLOW_SYMLINK_CHAIN)
+    endif()
+
 endforeach()
 
 # Start with the initially copied dependencies
@@ -369,6 +399,8 @@ foreach(LIBRARY IN LISTS BUNDLE_LIBRARIES_FRAMEWORKS)
             COMMAND install_name_tool
             -add_rpath "@executable_path/../Frameworks"
             -add_rpath "@executable_path/../Libraries"
+            -add_rpath "@loader_path/../../Frameworks" # For PlugIns
+            -add_rpath "@loader_path/../../Libraries"  # For PlugIns
             "${LIBRARY}"
     )
 endforeach()

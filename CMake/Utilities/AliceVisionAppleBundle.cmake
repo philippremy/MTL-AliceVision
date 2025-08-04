@@ -1,7 +1,7 @@
 function(alicevision_add_apple_bundle bundle_name)
     set(options SYMLINK_FRAMEWORK_RESOURCES)
     set(singleValues ICON)
-    set(multipleValues BINARIES LIBRARIES RESOURCES)
+    set(multipleValues BINARIES LIBRARIES PLUGINS RESOURCES)
 
     cmake_parse_arguments(BUNDLE "${options}" "${singleValues}" "${multipleValues}" ${ARGN})
 
@@ -13,6 +13,7 @@ function(alicevision_add_apple_bundle bundle_name)
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/MacOS")
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/Resources")
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/Libraries")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns")
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/Frameworks")
 
     # Configure the Info.plist file
@@ -43,6 +44,7 @@ function(alicevision_add_apple_bundle bundle_name)
                 COMMAND rsync -a
                 $<TARGET_LINKER_FILE_DIR:${LIBRARY}>
                 ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/Frameworks
+            COMMENT "Copying library ${LIBRARY} to AliceVision Bundle..."
         )
     endforeach()
 
@@ -78,7 +80,51 @@ function(alicevision_add_apple_bundle bundle_name)
                 COMMAND ${CMAKE_COMMAND} -E create_symlink
                     ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/MacOS/$<TARGET_FILE_NAME:${BINARY}>
                     ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/MacOS/${BINARAY_NAME}
+                COMMENT "Copying binary ${BINARAY_NAME} to AliceVision Bundle..."
         )
+    endforeach()
+
+    foreach(PLUGIN IN LISTS BUNDLE_PLUGINS)
+        # Get Version from the target
+        get_target_property(PLUGIN_VERSION ${PLUGIN} VERSION)
+        # Extract major version (before first dot)
+        string(REGEX MATCH "^[0-9]+" PLUGIN_VERSION_MAJOR "${PLUGIN_VERSION}")
+
+        # Copy the output file of the target
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}")
+        add_custom_command(TARGET AliceVisionBundle POST_BUILD
+                COMMAND rsync -a
+                $<TARGET_FILE:${PLUGIN}>
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}
+                COMMENT "Copying plugin ${PLUGIN} to AliceVision Bundle..."
+        )
+        # Regular without soversion
+        add_custom_command(TARGET AliceVisionBundle POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_NAME:${PLUGIN}>
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_PREFIX:${PLUGIN}>$<TARGET_FILE_BASE_NAME:${PLUGIN}>$<TARGET_FILE_SUFFIX:${PLUGIN}>
+        )
+        # With soversion
+        add_custom_command(TARGET AliceVisionBundle POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_NAME:${PLUGIN}>
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_PREFIX:${PLUGIN}>$<TARGET_FILE_BASE_NAME:${PLUGIN}>.$<TARGET_PROPERTY:${PLUGIN},SOVERSION>$<TARGET_FILE_SUFFIX:${PLUGIN}>
+        )
+        # With major version
+        add_custom_command(TARGET AliceVisionBundle POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_NAME:${PLUGIN}>
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}/$<TARGET_FILE_PREFIX:${PLUGIN}>$<TARGET_FILE_BASE_NAME:${PLUGIN}>.${PLUGIN_VERSION_MAJOR}$<TARGET_FILE_SUFFIX:${PLUGIN}>
+        )
+        # Now get the resources which should be copied with it
+        get_target_property(PLUGIN_RESOURCES_LIST ${PLUGIN} PLUGIN_RESOURCES)
+        foreach(RES IN LISTS PLUGIN_RESOURCES_LIST)
+        add_custom_command(TARGET AliceVisionBundle POST_BUILD
+                COMMAND rsync -a
+                "${RES}"
+                ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/PlugIns/${PLUGIN}
+        )
+        endforeach()
     endforeach()
 
     # Resources (always add the Bundle icon)
@@ -89,14 +135,13 @@ function(alicevision_add_apple_bundle bundle_name)
                 COMMAND rsync -a
                 ${RESOURCE}
                 ${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle/Contents/Resources
+            COMMENT "Copying resource ${RESOURCE} to AliceVision Bundle..."
         )
     endforeach()
 
     # Per custom command and target, attempt to find all dependencies
     # Create a custom target for the bundle (not built by default)
-    add_custom_target(AliceVisionBundleFixUpDependencies ALL
-            COMMENT "Fixing up dependencies in AliceVision Bundle..."
-    )
+    add_custom_target(AliceVisionBundleFixUpDependencies ALL)
 
     # The bundle must be completely populated
     add_dependencies(AliceVisionBundleFixUpDependencies
@@ -108,6 +153,7 @@ function(alicevision_add_apple_bundle bundle_name)
             COMMAND ${CMAKE_COMMAND}
                 "-DBUNDLE=${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle"
                 -P "${CMAKE_SOURCE_DIR}/CMake/Helpers/FixupAppleBundle.cmake"
+            COMMENT "Fixing up dependencies in AliceVision Bundle..."
     )
 
     # Set the icon file
@@ -117,6 +163,7 @@ function(alicevision_add_apple_bundle bundle_name)
                 "${CMAKE_BINARY_DIR}/Bundle/AliceVision.bundle"
                 "${BUNDLE_ICON}"
             --quiet
+            COMMENT "Setting icon for AliceVision Bundle..."
     )
 
 endfunction()

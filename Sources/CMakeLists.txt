@@ -361,6 +361,13 @@ if(ALICEVISION_USE_VULKAN)
     set(ALICEVISION_HAVE_FP16 1)
 endif()
 
+# Qt
+set(ALICEVISION_HAVE_QT6 0)
+if(ALICEVISION_BUILD_MESHROOM_QT_PLUGINS OR ALICEVISION_BUILD_GUI)
+    find_package(Qt6 COMPONENTS 3DCore 3DExtras 3DRender Core Svg QuickControls2 Quick Qml Charts Gui ShaderTools REQUIRED)
+    set(ALICEVISION_HAVE_QT6 1)
+endif()
+
 # TODO: CUDA; uncertaintyTE; MAGMA; MOSEK
 
 ###===================================================
@@ -429,6 +436,8 @@ alicevision_print_dep(PopSift ALICEVISION_HAVE_POPSIFT)
 message("├ Vulkan-Only Dependencies:${Esc}[50G│")
 alicevision_print_dep(VulkanMemoryAllocator ALICEVISION_HAVE_VMA)
 alicevision_print_dep(FP16 ALICEVISION_HAVE_FP16)
+message("├ Plugin-Only Dependencies:${Esc}[50G│")
+alicevision_print_dep(Qt6 ALICEVISION_HAVE_QT6)
 message("└──────────── Dependency Summary End ────────────┘\n")
 
 ###===================================================
@@ -445,10 +454,12 @@ configure_file("${CMAKE_SOURCE_DIR}/CMake/Resources/config.hpp.in" "${configfile
 ###
 ###===================================================
 set(ALICEVISION_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Sources/Headers")
+set(ALICEVISION_PLUGIN_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Sources/Plugins/AliceVisionQt/Sources/Headers")
 include(Utilities/AliceVisionAppleBundle)
 include(Utilities/AliceVisionInterface)
 include(Utilities/AliceVisionKernelLibrary)
 include(Utilities/AliceVisionLibrary)
+include(Utilities/AliceVisionPlugin)
 include(Utilities/AliceVisionSoftware)
 include(Utilities/AliceVisionTest)
 
@@ -459,6 +470,7 @@ include(Utilities/AliceVisionTest)
 ###===================================================
 set(ALICEVISION_LIBRARIES CACHE INTERNAL "AliceVision Libraries")
 set(ALICEVISION_BINARIES  CACHE INTERNAL "AliceVision Binaries")
+set(ALICEVISION_PLUGINS  CACHE INTERNAL "AliceVision Plugins")
 
 ###===================================================
 ###
@@ -473,6 +485,15 @@ add_subdirectory(Libraries)
 ###
 ###===================================================
 add_subdirectory(Binaries)
+
+###===================================================
+###
+### AliceVision Plugins
+###
+###===================================================
+if(ALICEVISION_BUILD_MESHROOM_QT_PLUGINS)
+    add_subdirectory(Plugins/AliceVisionQt)
+endif()
 
 ###===================================================
 ###
@@ -499,6 +520,8 @@ if(APPLE AND ALICEVISION_CREATE_AV_BUNDLE)
                 ${ALICEVISION_LIBRARIES}
             BINARIES
                 ${ALICEVISION_BINARIES}
+            PLUGINS
+                ${ALICEVISION_PLUGINS}
             RESOURCES
                 ${BUNDLE_RESOURCE_LIST}
     )
