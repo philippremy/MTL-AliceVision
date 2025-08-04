@@ -34,9 +34,8 @@ set(FEATS_H
 set_source_files_properties(${FEATS} ${FEATS_H} PROPERTIES LANGUAGE C)
 set_source_files_properties(${FEATS_H} PROPERTIES HEADER_FILE_ONLY TRUE)
 
-set(SIMD_DEFINITIONS "-DVL_DISABLE_AVX")
-if (NOT ALICEVISION_HAVE_SSE)
-    list(APPEND SIMD_DEFINITIONS "-DVL_DISABLE_SSE2")
+if(ALICEVISION_HAVE_OPENMP)
+    set(VLFEAT_OPENMP_TARGETS OpenMP::OpenMP_C)
 endif()
 
 alicevision_add_library(VLFeat
@@ -45,6 +44,8 @@ alicevision_add_library(VLFeat
     PRIVATE_INCLUDE_DIRS
         # VLFeat uses "#include <VLFeat/A_SOURCE_FILE.c>": WTF?
         "${CMAKE_SOURCE_DIR}/Sources/Libraries"
-    PUBLIC_DEFINITIONS ${SIMD_DEFINITIONS}
-    PRIVATE_DEFINITIONS "-DVL_BUILD_DLL"
+    PUBLIC_LINKS
+        ${VLFEAT_OPENMP_TARGETS}
+    PRIVATE_DEFINITIONS
+        "-DVL_BUILD_DLL"
 )

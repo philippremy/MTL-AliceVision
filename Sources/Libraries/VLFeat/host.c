@@ -441,31 +441,6 @@ _vl_cpuid (vl_int32* info, int function)
 
 #endif
 
-#if defined(HAS_CPUID)
-void
-_vl_x86cpu_info_init (VlX86CpuInfo *self)
-{
-  vl_int32 info [4] ;
-  int max_func = 0 ;
-  _vl_cpuid(info, 0) ;
-  max_func = info[0] ;
-  self->vendor.words[0] = info[1] ;
-  self->vendor.words[1] = info[3] ;
-  self->vendor.words[2] = info[2] ;
-
-  if (max_func >= 1) {
-    _vl_cpuid(info, 1) ;
-    self->hasMMX   = info[3] & (1 << 23) ;
-    self->hasSSE   = info[3] & (1 << 25) ;
-    self->hasSSE2  = info[3] & (1 << 26) ;
-    self->hasSSE3  = info[2] & (1 <<  0) ;
-    self->hasSSE41 = info[2] & (1 << 19) ;
-    self->hasSSE42 = info[2] & (1 << 20) ;
-    self->hasAVX   = info[2] & (1 << 28) ;
-  }
-}
-#endif
-
 char *
 _vl_x86cpu_info_to_string_copy (VlX86CpuInfo const *self)
 {
@@ -489,6 +464,36 @@ _vl_x86cpu_info_to_string_copy (VlX86CpuInfo const *self)
   }
   return string ;
 }
+
+#if defined(HAS_CPUID)
+void
+_vl_x86cpu_info_init (VlX86CpuInfo *self)
+{
+  vl_int32 info [4] ;
+  int max_func = 0 ;
+  _vl_cpuid(info, 0) ;
+  max_func = info[0] ;
+  self->vendor.words[0] = info[1] ;
+  self->vendor.words[1] = info[3] ;
+  self->vendor.words[2] = info[2] ;
+
+  if (max_func >= 1) {
+    _vl_cpuid(info, 1) ;
+    self->hasMMX   = info[3] & (1 << 23) ;
+    self->hasSSE   = info[3] & (1 << 25) ;
+    self->hasSSE2  = info[3] & (1 << 26) ;
+    self->hasSSE3  = info[2] & (1 <<  0) ;
+    self->hasSSE41 = info[2] & (1 << 19) ;
+    self->hasSSE42 = info[2] & (1 << 20) ;
+    self->hasAVX   = info[2] & (1 << 28) ;
+  }
+
+  #define INT_TO_BOOL_STR(b) ((b) == 1 ? "true" : "false")
+
+  printf("VLFeat CPU Features: %s\n", _vl_x86cpu_info_to_string_copy(self));
+
+}
+#endif
 
 /** ------------------------------------------------------------------
  ** @brief Human readable static library configuration
