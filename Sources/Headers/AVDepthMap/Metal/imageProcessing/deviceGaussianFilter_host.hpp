@@ -23,23 +23,17 @@ class DeviceGaussianFilterManager
 {
 public:
   DeviceGaussianFilterManager() = default;
-  ~DeviceGaussianFilterManager()
-  {
-    if (_offsetBuffer)
-      _offsetBuffer->release();
-    if (_gaussianArray)
-      _gaussianArray->release();
-  }
+  ~DeviceGaussianFilterManager() = default;
 
-  void insertOffsetBuffer(MTL::Buffer* buffer) { _offsetBuffer = buffer; }
-  void insertGaussianArrayBuffer(MTL::Buffer* buffer) { _gaussianArray = buffer; }
+  void insertOffsetBuffer(const NS::SharedPtr<MTL::Buffer>& buffer) { _offsetBuffer = buffer; }
+  void insertGaussianArrayBuffer(const NS::SharedPtr<MTL::Buffer>& buffer) { _gaussianArray = buffer; }
 
-  inline MTL::Buffer* getOffsetBuffer() const { return _offsetBuffer; }
-  inline MTL::Buffer* getGaussianArrayBuffer() const { return _gaussianArray; }
+  inline MTL::Buffer* getOffsetBuffer() const { return _offsetBuffer.get(); }
+  inline MTL::Buffer* getGaussianArrayBuffer() const { return _gaussianArray.get(); }
 
 private:
-  MTL::Buffer* _offsetBuffer;
-  MTL::Buffer* _gaussianArray;
+  NS::SharedPtr<MTL::Buffer> _offsetBuffer;
+  NS::SharedPtr<MTL::Buffer> _gaussianArray;
 };
 
 void mtl_createConstantGaussianArray(DeviceGaussianFilterManager& mng, uint64_t deviceID, int scales);

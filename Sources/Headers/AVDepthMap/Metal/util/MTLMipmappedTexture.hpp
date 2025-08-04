@@ -14,6 +14,7 @@
     #define THREAD_ADDR_SPACE thread
 #else
     #include <Metal/Metal.hpp>
+    #include <AVSystem/Logger.hpp>
     #include <AVDepthMap/Metal/host/DeviceManager.hpp>
     #include <cassert>
     #define THREAD_ADDR_SPACE
@@ -267,25 +268,23 @@ public:
             prevHeight /= 2;
         }
         totalSize *= sizeof(T);
-        MTL::Buffer* buffer = aliceVision::depthMap::DeviceManager::getInstance().getDevice(deviceID)->newBuffer(totalSize, MTL::ResourceStorageModePrivate);
-        buffer->retain();
-        this->_buffer = buffer;
+        this->_buffer = NS::TransferPtr(aliceVision::depthMap::DeviceManager::getInstance().getDevice(deviceID)->newBuffer(totalSize, MTL::ResourceStorageModePrivate));
+        ALICEVISION_LOG_TRACE("MTLMipmappedTexture Allocation: " << this->_buffer->length() << " B. Levels: " << _levels << " Dim: (" << _level0Width << ", " << _level0Height << ")");
     }
 
     // Interpreting existing data
     explicit MTLMipmappedTexture(MTL::Buffer* initalizedBuffer, uint64_t level0Width, uint64_t level0Height, uint64_t mipLevels)
     : _level0Width(level0Width), _level0Height(level0Height), _levels(mipLevels)
     {
-        this->_buffer = initalizedBuffer;
+        this->_buffer = NS::RetainPtr(initalizedBuffer);
     }
 
     ~MTLMipmappedTexture()
     {
-        if(_buffer != nullptr)
-            _buffer->release();
+        ALICEVISION_LOG_TRACE("Deallocated MTLMipmappedTexture (MTLBuffer) with byte size: " << _buffer->length() << " B");
     }
 
-    MTL::Buffer* getBuffer() const { return _buffer; }
+    MTL::Buffer* getBuffer() const { return _buffer.get(); }
 
     #endif
 
@@ -293,7 +292,7 @@ private:
     #if defined(__METAL__)
     MTLDeviceAddrSpace T* _buffer = nullptr;
     #else
-    MTL::Buffer* _buffer = nullptr;
+    NS::SharedPtr<MTL::Buffer> _buffer = NS::SharedPtr<MTL::Buffer>();
     #endif
     uint64_t _level0Width;
     uint64_t _level0Height;

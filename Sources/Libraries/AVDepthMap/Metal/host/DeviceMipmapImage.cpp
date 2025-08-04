@@ -24,7 +24,7 @@ void DeviceMipmapImage::fill(const MTLHostMemoryHeap<MTLRGBA, 2>& in_img_hmh, in
     _levels = std::log2(maxDownscale / minDownscale) + 1;
 
     // allocate the device-sided full-size input image buffer
-    auto img_dmpPtr = std::make_shared<MTLDeviceMemoryPitched<MTLRGBA, 2>>(in_img_hmh.getSize(), deviceID, false);
+    auto img_dmpPtr = std::make_shared<MTLDeviceMemoryPitched<MTLRGBA, 2>>(in_img_hmh.getSize(), deviceID, false, "DeviceMipmapImage full-size input image buffer");
 
     // copy the host-sided full-size input image buffer onto the device-sided image buffer
     img_dmpPtr->copyFrom(in_img_hmh);
@@ -35,7 +35,7 @@ void DeviceMipmapImage::fill(const MTLHostMemoryHeap<MTLRGBA, 2>& in_img_hmh, in
         // create downscaled image buffer
         const size_t downscaledWidth = size_t(divideRoundUp(int(_width), int(minDownscale)));
         const size_t downscaledHeight = size_t(divideRoundUp(int(_height), int(minDownscale)));
-        auto downscaledImg_dmpPtr = std::make_shared<MTLDeviceMemoryPitched<MTLRGBA, 2>>(MTLSize<2>(downscaledWidth, downscaledHeight), deviceID, false);
+        auto downscaledImg_dmpPtr = std::make_shared<MTLDeviceMemoryPitched<MTLRGBA, 2>>(MTLSize<2>(downscaledWidth, downscaledHeight), deviceID, false, "DeviceMipmapImage downscaled input image buffer");
 
         // Create wrapper class
         MTLMipmappedTexture<MTLRGBA> fullSizeImg_tex = MTLMipmappedTexture<MTLRGBA>(img_dmpPtr->getBuffer(), img_dmpPtr->getUnitsInDim(0), img_dmpPtr->getUnitsInDim(1), 1);

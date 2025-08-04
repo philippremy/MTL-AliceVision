@@ -41,10 +41,11 @@ void computeOnMultiGPUs(const std::vector<int>& cams, IGPUJob& gpujob, int nbGPU
         int previous_count_threads = omp_get_max_threads();
         omp_set_num_threads(nbThreads);  // create as many CPU threads as there are CUDA devices
         const std::vector<uint64_t>& deviceIDs = DeviceManager::getInstance().getDeviceIDs();
-#pragma omp parallel
+#pragma omp parallel for
+        for(uint64_t i=0; i < nbThreads; i++)
         {
             const int cpuThreadId = omp_get_thread_num();
-            const int mtlDeviceID = deviceIDs.at(cpuThreadId % nbThreads);
+            const uint64_t mtlDeviceID = deviceIDs[i];
 
             ALICEVISION_LOG_INFO("CPU thread " << cpuThreadId << " (of " << nbThreads << ") uses Metal device: " << mtlDeviceID);
 

@@ -13,7 +13,7 @@
 namespace aliceVision {
 namespace depthMap {
 
-MTLCommandManager::MTLCommandManager(MTL::Device* device)
+MTLCommandManager::MTLCommandManager(const NS::SharedPtr<MTL::Device>& device)
   : m_device(device)
 {}
 
@@ -125,7 +125,8 @@ MTLCommandManager* MTLCommandManager::commandBuffer(const std::source_location& 
     ctxS << "[" << std::string(CFStringGetCStringPtr(uuidStr, kCFStringEncodingUTF8)) << "] ";
     ctxS << ctx.file_name() << ", " << ctx.function_name() << ", " << ctx.line();
     this->m_commandBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(this->m_device->registryID())->commandBuffer());
-    this->m_commandBuffer->setLabel(NS::String::alloc()->init(ctxS.str().c_str(), NS::UTF8StringEncoding));
+    NS::SharedPtr<NS::String> label = NS::TransferPtr(NS::String::alloc()->init(ctxS.str().c_str(), NS::UTF8StringEncoding));
+    this->m_commandBuffer->setLabel(label.get());
     CFRelease(uuidStr);
     CFRelease(uuid);
     return this;

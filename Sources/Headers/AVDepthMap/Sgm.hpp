@@ -72,6 +72,8 @@ class Sgm
      */
     double getDeviceMemoryConsumptionUnpadded() const;
 
+    MTLSize<2> getDeviceDepthSimMapSize() const;
+
     /**
      * @brief Compute for a single R camera the Semi-Global Matching.
      * @param[in] tile The given tile for SGM computation

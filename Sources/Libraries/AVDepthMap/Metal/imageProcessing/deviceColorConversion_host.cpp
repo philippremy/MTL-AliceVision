@@ -30,8 +30,8 @@ void mtl_rgb2lab(MTLDeviceMemoryPitched<MTLRGBA, 2>& inout_img_dmp, uint64_t dev
     ->pushConstants(pc)
     ->dispatchDimensions({inout_img_dmp.getSize().x(), inout_img_dmp.getSize().y(), 1}, {32, 2, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 }

@@ -49,8 +49,8 @@ void mtl_volumeAdd(MTLDeviceMemoryPitched<TSimRefine, 3>& inout_volume_dmp,
     ->pushConstants(pc)
     ->dispatchDimensions({volDim.x(), volDim.y(), volDim.z()}, {32, 4, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 /**
@@ -90,8 +90,8 @@ void mtl_volumeUpdateUninitializedSimilarity(const MTLDeviceMemoryPitched<TSim, 
     ->pushConstants(pc)
     ->dispatchDimensions({volDim.x(), volDim.y(), volDim.z()}, {32, 1, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 /**
@@ -178,8 +178,8 @@ void mtl_volumeComputeSimilarity(MTLDeviceMemoryPitched<TSim, 3>& out_volBestSim
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), depthRange.size()}, {32, 1, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 /**
@@ -255,7 +255,7 @@ void mtl_volumeRefineSimilarity(MTLDeviceMemoryPitched<TSimRefine, 3>& inout_vol
     MTLDeviceMemoryPitched<float3, 2> in_sgmNormalMap_dmp_DUMMY;
     if (in_sgmNormalMap_dmpPtr == nullptr)
     {
-        in_sgmNormalMap_dmp_DUMMY = MTLDeviceMemoryPitched<float3, 2>(MTLSize<2>(1, 1), deviceID, false);
+        in_sgmNormalMap_dmp_DUMMY = MTLDeviceMemoryPitched<float3, 2>(MTLSize<2>(1, 1), deviceID, false, "in_sgmNormalMap_dmp_DUMMY");
     }
 
     cmdMng
@@ -274,8 +274,8 @@ void mtl_volumeRefineSimilarity(MTLDeviceMemoryPitched<TSimRefine, 3>& inout_vol
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), depthRange.size()}, {32, 1, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
@@ -331,9 +331,9 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
     ->bind(in_volSim_dmp.getBuffer(), 1)
     ->pushConstants(pc)
     ->dispatchDimensions({volDimX, volDimZ, 1}, {8, 8, 1})
-    ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->endRecording();
+    // ->commitCommands();
+    // ->waitAll();
 
     const volume_initVolumeYSlice_kernel_PC pc2 = volume_initVolumeYSlice_kernel_PC{
         static_cast<int>(out_volAgr_dmp.getBytesPaddedUpToDim(1)),
@@ -346,17 +346,14 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
 
     // Set the first Z plane from 'out_volAgr_dmp' to 255
     cmdMng
-    ->reset()
-    ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-    ->commandBuffer()
     ->pipeline("aliceVision::depthMap::volume_initVolumeYSlice_kernel", "AVDepthMapMTLKernels")
     ->commandEncoder()
     ->bind(out_volAgr_dmp.getBuffer(), 0)
     ->pushConstants(pc2)
     ->dispatchDimensions({volDimX, volDimZ, 1}, {8, 8, 1})
-    ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->endRecording();
+    // ->commitCommands()
+    // ->waitAll();
 
     for(int iy = 1; iy < volDimY; ++iy)
     {
@@ -373,18 +370,15 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
         //   bestSimInYm1[x] = min(d_xzSliceForY[1:height])
         // Set the first Z plane from 'out_volAgr_dmp' to 255
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
         ->pipeline("aliceVision::depthMap::volume_computeBestZInSlice_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(xzSliceForYm1_dmpPtr->getBuffer(), 0)
         ->bind(bestSimInYm1_dmpPtr->getBuffer(), 1)
         ->pushConstants(pc3)
         ->dispatchDimensions({volDimX, 1, 1}, {64, 1, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands();
+        // ->waitAll();
 
         // Copy the 'z' plane from 'in_volSim_dmp' into 'xzSliceForY'
         const volume_getVolumeXZSlice_kernel_PC pc4 = volume_getVolumeXZSlice_kernel_PC{
@@ -398,18 +392,15 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
 
         // Copy the first XZ plane (at Y=0) from 'in_volSim_dmp' into 'xzSliceForYm1_dmpPtr'
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
         ->pipeline("aliceVision::depthMap::volume_getVolumeXZSlice_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(xzSliceForY_dmpPtr->getBuffer(), 0)
         ->bind(in_volSim_dmp.getBuffer(), 1)
         ->pushConstants(pc4)
         ->dispatchDimensions({volDimX, volDimZ, 1}, {8, 8, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands()
+        // ->waitAll();
 
         // Copy the 'z' plane from 'in_volSim_dmp' into 'xzSliceForY'
         const volume_agregateCostVolumeAtXinSlices_kernel_PC pc5 = volume_agregateCostVolumeAtXinSlices_kernel_PC{
@@ -436,9 +427,6 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
 
         // Copy the first XZ plane (at Y=0) from 'in_volSim_dmp' into 'xzSliceForYm1_dmpPtr'
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
         ->pipeline("aliceVision::depthMap::volume_agregateCostVolumeAtXinSlices_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(rcDeviceMipmapImage.getTextureObject(), 0)
@@ -448,12 +436,15 @@ void mtl_volumeAggregatePath(MTLDeviceMemoryPitched<TSim, 3>& out_volAgr_dmp,
         ->bind(out_volAgr_dmp.getBuffer(), 4)
         ->pushConstants(pc5)
         ->dispatchDimensions({volDimX, volDimZ, 1}, {64, 1, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands()
+        // ->waitAll();
 
         std::swap(xzSliceForYm1_dmpPtr, xzSliceForY_dmpPtr);
     }
+
+    cmdMng
+    ->commitCommands();
 }
 
 /**
@@ -572,7 +563,7 @@ void mtl_volumeRetrieveBestDepth(MTLDeviceMemoryPitched<float2, 2>& out_sgmDepth
     MTLDeviceMemoryPitched<float2, 2> out_sgmDepthSimMap_dmp_DUMMY;
     if (out_sgmDepthSimMap_dmp == nullptr)
     {
-        out_sgmDepthSimMap_dmp_DUMMY = MTLDeviceMemoryPitched<float2, 2>(MTLSize<2>(1, 1), deviceID, false);
+        out_sgmDepthSimMap_dmp_DUMMY = MTLDeviceMemoryPitched<float2, 2>(MTLSize<2>(1, 1), deviceID, false, "out_sgmDepthSimMap_dmp_DUMMY");
     }
 
     cmdMng
@@ -589,8 +580,8 @@ void mtl_volumeRetrieveBestDepth(MTLDeviceMemoryPitched<float2, 2>& out_sgmDepth
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), depthRange.size()}, {32, 1, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 /**
@@ -641,8 +632,8 @@ void mtl_volumeRefineBestDepth(MTLDeviceMemoryPitched<float2, 2>& out_refineDept
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), 1}, {32, 1, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 }  // namespace depthMap

@@ -14,33 +14,20 @@ namespace depthMap {
 
 DeviceManager::DeviceManager()
 {
-    NS::Array* devices = MTL::CopyAllDevices();
+    NS::SharedPtr<NS::Array> devices = NS::TransferPtr(MTL::CopyAllDevices());
     for (uint64_t idx=0; idx < devices->count(); idx++)
     {
-        MTL::Device* device = static_cast<MTL::Device*>(devices->object(idx));
+        NS::SharedPtr<MTL::Device> device = NS::TransferPtr(static_cast<MTL::Device*>(devices->object(idx)));
         this->_deviceMap.emplace(device->registryID(), device);
         this->_deviceIDs.emplace_back(device->registryID());
     }
-    devices->release();
-    for (MTL::Device* device : std::views::values(this->_deviceMap))
+    for (const NS::SharedPtr<MTL::Device>& device : std::views::values(this->_deviceMap))
     {
-        this->_commandQueueMap.emplace(device->registryID(), device->newCommandQueue());
+        this->_commandQueueMap.emplace(device->registryID(), NS::TransferPtr(device->newCommandQueue()));
     }
-        for (MTL::Device* device : std::views::values(this->_deviceMap))
+        for (const NS::SharedPtr<MTL::Device>& device : std::views::values(this->_deviceMap))
     {
         this->_commandManagerMap.emplace(device->registryID(), MTLCommandManager(device));
-    }
-}
-
-DeviceManager::~DeviceManager()
-{
-    for (MTL::CommandQueue* queue : std::views::values(this->_commandQueueMap))
-    {
-        queue->release();
-    }
-    for (MTL::Device* device : std::views::values(this->_deviceMap))
-    {
-        device->release();
     }
 }
 
@@ -82,17 +69,17 @@ const uint64_t DeviceManager::getPriorityDeviceID() const
     return priorityDeviceID;
 }
 
-const std::unordered_map<uint64_t, MTL::Device*>& DeviceManager::getDeviceMap() const
+const std::unordered_map<uint64_t, NS::SharedPtr<MTL::Device>>& DeviceManager::getDeviceMap() const
 {
     return this->_deviceMap;
 }
 
-MTL::Device* DeviceManager::getDevice(uint64_t forDeviceID) const
+const NS::SharedPtr<MTL::Device>& DeviceManager::getDevice(uint64_t forDeviceID) const
 {
     return _deviceMap.at(forDeviceID);
 }
 
-MTL::CommandQueue* DeviceManager::getCommandQueue(uint64_t forDeviceID) const
+const NS::SharedPtr<MTL::CommandQueue>& DeviceManager::getCommandQueue(uint64_t forDeviceID) const
 {
     return _commandQueueMap.at(forDeviceID);
 }

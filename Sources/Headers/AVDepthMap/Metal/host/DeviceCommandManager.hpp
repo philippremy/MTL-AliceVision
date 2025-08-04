@@ -256,7 +256,7 @@ class MTLCommandManager
 
 
   private:
-    explicit MTLCommandManager(MTL::Device* device);
+    explicit MTLCommandManager(const NS::SharedPtr<MTL::Device>& device);
 
     // Current Command State
     NS::SharedPtr<MTL::ComputePipelineState> m_currentPipeline;
@@ -271,7 +271,7 @@ class MTLCommandManager
     std::vector<std::pair<std::string, NS::SharedPtr<MTL::LogContainer>>> m_cmdBufferLogs = {};
 
     // Internal Cache
-    MTL::Device* m_device;
+    NS::SharedPtr<MTL::Device> m_device;
     std::unordered_map<std::string, NS::SharedPtr<MTL::Library>> m_metalLibraries = {};  // A map holding library names and libraries
     std::unordered_map<std::string, NS::SharedPtr<MTL::ComputePipelineState>> m_pipelineStates =
       {};  // A map holding pipeline names and pipeline states

@@ -26,40 +26,6 @@ Refine::Refine(const mvsUtils::MultiViewParams& mp, const mvsUtils::TileParams& 
     _refineParams(refineParams),
     _deviceID(deviceID)
 {
-    // get tile maximum dimensions
-    const int downscale = _refineParams.scale * _refineParams.stepXY;
-    const int maxTileWidth = divideRoundUp(tileParams.bufferWidth, downscale);
-    const int maxTileHeight = divideRoundUp(tileParams.bufferHeight, downscale);
-
-    // compute depth/sim map maximum dimensions
-    const MTLSize<2> depthSimMapDim(maxTileWidth, maxTileHeight);
-
-    // allocate depth/sim maps in device memory
-    _sgmDepthPixSizeMap_dmp.allocate(depthSimMapDim, deviceID, false);
-    _refinedDepthSimMap_dmp.allocate(depthSimMapDim, deviceID, false);
-    _optimizedDepthSimMap_dmp.allocate(depthSimMapDim, deviceID, false);
-
-    // allocate SGM upscaled normal map in device memory
-    if (_refineParams.useSgmNormalMap)
-        _sgmNormalMap_dmp.allocate(depthSimMapDim, deviceID, false);
-
-    // allocate normal map in device memory
-    if (_refineParams.exportIntermediateNormalMaps)
-        _normalMap_dmp.allocate(depthSimMapDim, deviceID, false);
-
-    // compute volume maximum dimensions
-    const int nbDepthsToRefine = _refineParams.halfNbDepths * 2 + 1;
-    const MTLSize<3> volDim(maxTileWidth, maxTileHeight, nbDepthsToRefine);
-
-    // allocate refine volume in device memory
-    _volumeRefineSim_dmp.allocate(volDim, deviceID, false);
-
-    // allocate depth/sim map optimization buffers
-    if (_refineParams.useColorOptimization)
-    {
-        _optTmpDepthMap_dmp.allocate(depthSimMapDim, deviceID, false);
-        _optImgVariance_dmp.allocate(depthSimMapDim, deviceID, false);
-    }
 }
 
 double Refine::getDeviceMemoryConsumption() const
@@ -94,10 +60,57 @@ double Refine::getDeviceMemoryConsumptionUnpadded() const
     return (double(bytes) / (1024.0 * 1024.0));
 }
 
+MTLSize<2> Refine::getDeviceDepthSimMapSize() const
+{
+    // get tile maximum dimensions
+    const int downscale = _refineParams.scale * _refineParams.stepXY;
+    const int maxTileWidth = divideRoundUp(_tileParams.bufferWidth, downscale);
+    const int maxTileHeight = divideRoundUp(_tileParams.bufferHeight, downscale);
+
+    // compute depth/sim map maximum dimensions
+    const MTLSize<2> depthSimMapDim(maxTileWidth, maxTileHeight);
+    return depthSimMapDim;
+}
+
 void Refine::refineRc(const Tile& tile,
                       const MTLDeviceMemoryPitched<float2, 2>& in_sgmDepthThicknessMap_dmp,
                       const MTLDeviceMemoryPitched<float3, 2>& in_sgmNormalMap_dmp)
 {
+    // get tile maximum dimensions
+    const int downscale = _refineParams.scale * _refineParams.stepXY;
+    const int maxTileWidth = divideRoundUp(_tileParams.bufferWidth, downscale);
+    const int maxTileHeight = divideRoundUp(_tileParams.bufferHeight, downscale);
+
+    // compute depth/sim map maximum dimensions
+    const MTLSize<2> depthSimMapDim(maxTileWidth, maxTileHeight);
+
+    // allocate depth/sim maps in device memory
+    _sgmDepthPixSizeMap_dmp.allocate("rc upscaled SGM depth/pixSize map", depthSimMapDim, _deviceID, false);
+    _refinedDepthSimMap_dmp.allocate("rc refined and fused depth/sim map", depthSimMapDim, _deviceID, false);
+    _optimizedDepthSimMap_dmp.allocate("rc optimized depth/sim map", depthSimMapDim, _deviceID, false);
+
+    // allocate SGM upscaled normal map in device memory
+    if (_refineParams.useSgmNormalMap)
+        _sgmNormalMap_dmp.allocate("rc upscaled SGM normal map (for experimentation purposes)", depthSimMapDim, _deviceID, false);
+
+    // allocate normal map in device memory
+    if (_refineParams.exportIntermediateNormalMaps)
+        _normalMap_dmp.allocate("rc normal map (for debug / intermediate results purposes)", depthSimMapDim, _deviceID, false);
+
+    // compute volume maximum dimensions
+    const int nbDepthsToRefine = _refineParams.halfNbDepths * 2 + 1;
+    const MTLSize<3> volDim(maxTileWidth, maxTileHeight, nbDepthsToRefine);
+
+    // allocate refine volume in device memory
+    _volumeRefineSim_dmp.allocate("rc refine similarity volume", volDim, _deviceID, false);
+
+    // allocate depth/sim map optimization buffers
+    if (_refineParams.useColorOptimization)
+    {
+        _optTmpDepthMap_dmp.allocate("for color optimization: temporary depth map buffer", depthSimMapDim, _deviceID, false);
+        _optImgVariance_dmp.allocate("for color optimization: image variance buffer", depthSimMapDim, _deviceID, false);
+    }
+
     const IndexT viewId = _mp.getViewId(tile.rc);
 
     ALICEVISION_LOG_INFO(tile << "Refine depth/sim map of view id: " << viewId << ", rc: " << tile.rc << " (" << (tile.rc + 1) << " / " << _mp.ncams

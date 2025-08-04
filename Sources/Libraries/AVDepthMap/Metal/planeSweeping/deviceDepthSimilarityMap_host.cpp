@@ -49,8 +49,8 @@ void mtl_depthSimMapCopyDepthOnly(MTLDeviceMemoryPitched<float2, 2>& out_depthSi
     ->pushConstants(pc)
     ->dispatchDimensions({depthSimMapDim.x(), depthSimMapDim.y(), 1}, {16, 16, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 };
 
 /**
@@ -90,8 +90,8 @@ void mtl_normalMapUpscale(MTLDeviceMemoryPitched<float3, 2>& out_upscaledMap_dmp
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), 1}, {16, 16, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 };
 
 /**
@@ -138,8 +138,8 @@ void mtl_depthThicknessSmoothThickness(MTLDeviceMemoryPitched<float2, 2>& inout_
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), 1}, {8, 8, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 };
 
 /**
@@ -206,8 +206,8 @@ void mtl_computeSgmUpscaledDepthPixSizeMap(MTLDeviceMemoryPitched<float2, 2>& ou
         ->pushConstants(pc)
         ->dispatchDimensions({roi.width(), roi.height(), 1}, {16, 16, 1})
         ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->commitCommands();
+        // ->waitAll();
     }
     else
     {
@@ -240,8 +240,8 @@ void mtl_computeSgmUpscaledDepthPixSizeMap(MTLDeviceMemoryPitched<float2, 2>& ou
         ->pushConstants(pc)
         ->dispatchDimensions({roi.width(), roi.height(), 1}, {16, 16, 1})
         ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->commitCommands();
+        // ->waitAll();
     }
 };
 
@@ -287,8 +287,8 @@ void mtl_depthSimMapComputeNormal(MTLDeviceMemoryPitched<float3, 2>& out_normalM
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), 1}, {8, 8, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 };
 
 /**
@@ -350,9 +350,7 @@ void mtl_depthSimMapOptimizeGradientDescent(MTLDeviceMemoryPitched<float2, 2>& o
     ->bind(rcDeviceMipmapImage.getTextureObject(), 1)
     ->pushConstants(pc)
     ->dispatchDimensions({roi.width(), roi.height(), 1}, {32, 2, 1})
-    ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->endRecording();
 
     for(int iter = 0; iter < refineParams.optimizationNbIterations; ++iter) // default nb iterations is 100
     {
@@ -364,18 +362,15 @@ void mtl_depthSimMapOptimizeGradientDescent(MTLDeviceMemoryPitched<float2, 2>& o
         };
 
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
         ->pipeline("aliceVision::depthMap::optimize_getOptDeptMapFromOptDepthSimMap_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(inout_tmpOptDepthMap_dmp.getBuffer(), 0)
         ->bind(out_optimizeDepthSimMap_dmp.getBuffer(), 1)
         ->pushConstants(pc2)
         ->dispatchDimensions({roi.width(), roi.height(), 1}, {16, 16, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands();
+        // ->waitAll();
 
         // copy depths values from out_depthSimMapOptimized_dmp to inout_tmpOptDepthMap_dmp
         const optimize_depthSimMap_kernel_PC pc3 = optimize_depthSimMap_kernel_PC{
@@ -394,9 +389,6 @@ void mtl_depthSimMapOptimizeGradientDescent(MTLDeviceMemoryPitched<float2, 2>& o
         };
 
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
         ->pipeline("aliceVision::depthMap::optimize_depthSimMap_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(out_optimizeDepthSimMap_dmp.getBuffer(), 0)
@@ -407,10 +399,13 @@ void mtl_depthSimMapOptimizeGradientDescent(MTLDeviceMemoryPitched<float2, 2>& o
         ->bind(deviceCameraParamsBuffer, 5)
         ->pushConstants(pc3)
         ->dispatchDimensions({roi.width(), roi.height(), 1}, {16, 16, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands();
+        // ->waitAll();
     }
+
+    cmdMng
+    ->commitCommands();
 };
 
 }  // namespace depthMap

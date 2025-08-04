@@ -48,8 +48,8 @@ void mtl_downscaleWithGaussianBlur(MTLDeviceMemoryPitched<MTLRGBA, 2>& out_downs
     ->pushConstants(pc)
     ->dispatchDimensions({out_downscaledImg_dmp.getSize().x(), out_downscaledImg_dmp.getSize().y(), 1}, {32, 2, 1})
     ->endRecording()
-    ->commitCommands()
-    ->waitAll();
+    ->commitCommands();
+    // ->waitAll();
 }
 
 void mtl_createConstantGaussianArray(DeviceGaussianFilterManager& mng, uint64_t deviceID, int scales)
@@ -94,10 +94,8 @@ void mtl_createConstantGaussianArray(DeviceGaussianFilterManager& mng, uint64_t 
     // Create Metal Buffer
     auto device = DeviceManager::getInstance().getDevice(deviceID);
 
-    MTL::Buffer* gaussOffsetBuffer = device->newBuffer(h_gaussianArrayOffset, MAX_CONSTANT_GAUSS_SCALES * sizeof(int), MTL::ResourceStorageModeManaged);
-    MTL::Buffer* gaussArrayBuffer = device->newBuffer(h_gaussianArray, MAX_CONSTANT_GAUSS_MEM_SIZE * sizeof(float), MTL::ResourceStorageModeManaged);
-    gaussOffsetBuffer->retain();
-    gaussArrayBuffer->retain();
+    NS::SharedPtr<MTL::Buffer> gaussOffsetBuffer = NS::TransferPtr(device->newBuffer(h_gaussianArrayOffset, MAX_CONSTANT_GAUSS_SCALES * sizeof(int), MTL::ResourceStorageModeManaged));
+    NS::SharedPtr<MTL::Buffer> gaussArrayBuffer = NS::TransferPtr(device->newBuffer(h_gaussianArray, MAX_CONSTANT_GAUSS_MEM_SIZE * sizeof(float), MTL::ResourceStorageModeManaged));
     gaussOffsetBuffer->didModifyRange(NS::Range(0, MAX_CONSTANT_GAUSS_SCALES * sizeof(int)));
     gaussArrayBuffer->didModifyRange(NS::Range(0, MAX_CONSTANT_GAUSS_MEM_SIZE * sizeof(float)));
 

@@ -34,50 +34,18 @@ Sgm::Sgm(const mvsUtils::MultiViewParams& mp,
     _computeNormalMap(computeNormalMap || sgmParams.exportIntermediateNormalMaps),
     _deviceID(deviceID)
 {
+}
+
+MTLSize<2> Sgm::getDeviceDepthSimMapSize() const
+{
     // get tile maximum dimensions
     const int downscale = _sgmParams.scale * _sgmParams.stepXY;
-    const int maxTileWidth = divideRoundUp(tileParams.bufferWidth, downscale);
-    const int maxTileHeight = divideRoundUp(tileParams.bufferHeight, downscale);
+    const int maxTileWidth = divideRoundUp(_tileParams.bufferWidth, downscale);
+    const int maxTileHeight = divideRoundUp(_tileParams.bufferHeight, downscale);
 
-    // compute map maximum dimensions
-    const MTLSize<2> mapDim(maxTileWidth, maxTileHeight);
-
-    // allocate depth list in device memory
-    {
-        const MTLSize<2> depthsDim(_sgmParams.maxDepths, 1);
-
-        _depths_hmh.allocate(depthsDim);
-        _depths_dmp.allocate(depthsDim, deviceID, false);
-    }
-
-    // allocate depth thickness map in device memory
-    _depthThicknessMap_dmp.allocate(mapDim, deviceID, false);
-
-    // allocate depth/sim map in device memory
-    if (_computeDepthSimMap)
-        _depthSimMap_dmp.allocate(mapDim, deviceID, false);
-
-    // allocate normal map in device memory
-    if (_computeNormalMap)
-        _normalMap_dmp.allocate(mapDim, deviceID, false);
-
-    // allocate similarity volumes in device memory
-    {
-        const MTLSize<3> volDim(maxTileWidth, maxTileHeight, _sgmParams.maxDepths);
-
-        _volumeBestSim_dmp.allocate(volDim, deviceID, false);
-        _volumeSecBestSim_dmp.allocate(volDim, deviceID, false);
-    }
-
-    // allocate similarity volume optimization buffers
-    if (sgmParams.doSgmOptimizeVolume)
-    {
-        const size_t maxTileSide = std::max(maxTileWidth, maxTileHeight);
-
-        _volumeSliceAccA_dmp.allocate(MTLSize<2>(maxTileSide, _sgmParams.maxDepths), deviceID, false);
-        _volumeSliceAccB_dmp.allocate(MTLSize<2>(maxTileSide, _sgmParams.maxDepths), deviceID, false);
-        _volumeAxisAcc_dmp.allocate(MTLSize<2>(maxTileSide, 1), deviceID, false);
-    }
+    // compute depth/sim map maximum dimensions
+    const MTLSize<2> depthSimMapDim(maxTileWidth, maxTileHeight);
+    return depthSimMapDim;
 }
 
 double Sgm::getDeviceMemoryConsumption() const
@@ -116,6 +84,51 @@ double Sgm::getDeviceMemoryConsumptionUnpadded() const
 
 void Sgm::sgmRc(const Tile& tile, const SgmDepthList& tileDepthList)
 {
+    // get tile maximum dimensions
+    const int downscale = _sgmParams.scale * _sgmParams.stepXY;
+    const int maxTileWidth = divideRoundUp(_tileParams.bufferWidth, downscale);
+    const int maxTileHeight = divideRoundUp(_tileParams.bufferHeight, downscale);
+
+    // compute map maximum dimensions
+    const MTLSize<2> mapDim(maxTileWidth, maxTileHeight);
+
+    // allocate depth list in device memory
+    {
+        const MTLSize<2> depthsDim(_sgmParams.maxDepths, 1);
+
+        _depths_hmh.allocate(depthsDim);
+        _depths_dmp.allocate("rc depth data device memory", depthsDim, _deviceID, false);
+    }
+
+    // allocate depth thickness map in device memory
+    _depthThicknessMap_dmp.allocate("rc result depth thickness map", mapDim, _deviceID, false);
+
+    // allocate depth/sim map in device memory
+    if (_computeDepthSimMap)
+        _depthSimMap_dmp.allocate("rc result depth/sim map", mapDim, _deviceID, false);
+
+    // allocate normal map in device memory
+    if (_computeNormalMap)
+        _normalMap_dmp.allocate("rc normal map", mapDim, _deviceID, false);
+
+    // allocate similarity volumes in device memory
+    {
+        const MTLSize<3> volDim(maxTileWidth, maxTileHeight, _sgmParams.maxDepths);
+
+        _volumeBestSim_dmp.allocate("rc best similarity volume", volDim, _deviceID, false);
+        _volumeSecBestSim_dmp.allocate("rc second best similarity volume", volDim, _deviceID, false);
+    }
+
+    // allocate similarity volume optimization buffers
+    if (_sgmParams.doSgmOptimizeVolume)
+    {
+        const size_t maxTileSide = std::max(maxTileWidth, maxTileHeight);
+
+        _volumeSliceAccA_dmp.allocate("for optimization: volume accumulation slice A", MTLSize<2>(maxTileSide, _sgmParams.maxDepths), _deviceID, false);
+        _volumeSliceAccB_dmp.allocate("for optimization: volume accumulation slice B", MTLSize<2>(maxTileSide, _sgmParams.maxDepths), _deviceID, false);
+        _volumeAxisAcc_dmp.allocate("for optimization: volume accumulation axis", MTLSize<2>(maxTileSide, 1), _deviceID, false);
+    }
+
     const IndexT viewId = _mp.getViewId(tile.rc);
 
     ALICEVISION_LOG_INFO(tile << "SGM depth/thickness map of view id: " << viewId << ", rc: " << tile.rc << " (" << (tile.rc + 1) << " / "

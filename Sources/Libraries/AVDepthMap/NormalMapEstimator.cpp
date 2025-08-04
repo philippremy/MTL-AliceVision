@@ -4,6 +4,7 @@
 // v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#include <AVDepthMap/Metal/host/DeviceManager.hpp>
 #include <AVDepthMap/NormalMapEstimator.hpp>
 
 #include <AVSystem/Logger.hpp>
@@ -15,10 +16,6 @@
 #include <AVDepthMap/Metal/host/utils.hpp>
 #include <AVDepthMap/Metal/host/DeviceCache.hpp>
 #include <AVDepthMap/Metal/planeSweeping/deviceDepthSimilarityMap_host.hpp>
-
-#include <filesystem>
-
-namespace fs = std::filesystem;
 
 namespace aliceVision {
 namespace depthMap {
@@ -32,8 +29,11 @@ void NormalMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& c
     DeviceCache& deviceCache = DeviceCache::getInstance();
     deviceCache.build(0, 1, mtlDeviceID);  // 0 mipmap image, 1 camera parameters
 
-    for (const int rc : cams)
+    // This can be parallelized. MTLCommandBuffer is thread safe to use from the same queue.
+    #pragma omp parallel for
+    for (int idx=0; idx < cams.size(); idx++)
     {
+        const int rc = cams[idx];
         const std::string normalMapFilepath = getFileNameFromIndex(_mp, rc, mvsUtils::EFileType::normalMapFiltered);
 
         if (!utils::exists(normalMapFilepath))
@@ -66,7 +66,7 @@ void NormalMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& c
             // copy input depth map into depth/sim map in device memory
             // note: we don't need similarity for normal map computation
             //       we use depth/sim map in order to avoid code duplication
-            MTLDeviceMemoryPitched<float2, 2> in_depthSimMap_dmp({size_t(width), size_t(height)}, mtlDeviceID, false);
+            MTLDeviceMemoryPitched<float2, 2> in_depthSimMap_dmp({size_t(width), size_t(height)}, mtlDeviceID, false, "input depth/sim map");
             {
                 MTLHostMemoryHeap<float2, 2> in_depthSimMap_hmh(in_depthSimMap_dmp.getSize());
 
@@ -78,10 +78,13 @@ void NormalMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& c
             }
 
             // allocate normal map buffer in device memory
-            MTLDeviceMemoryPitched<float3, 2> out_normalMap_dmp(in_depthSimMap_dmp.getSize(), mtlDeviceID, false);
+            MTLDeviceMemoryPitched<float3, 2> out_normalMap_dmp(in_depthSimMap_dmp.getSize(), mtlDeviceID, false, "output normal map");
 
             // compute normal map
             mtl_depthSimMapComputeNormal(out_normalMap_dmp, in_depthSimMap_dmp, rcDeviceCameraParamsId, 1 /*step*/, roi, mtlDeviceID);
+
+            // Wait for kernel execution to finish
+            DeviceManager::getInstance().getCommandManager(mtlDeviceID)->waitAll();
 
             // write output normal map
             writeNormalMapFiltered(rc, _mp, tileParams, roi, out_normalMap_dmp);

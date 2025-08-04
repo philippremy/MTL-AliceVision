@@ -38,6 +38,12 @@ void mtl_createMipmappedArrayFromImage(MTLMipmappedTexture<MTLRGBA>* out_mipmapp
     const MTL::Buffer* gaussOffsetBuffer = DeviceCache::getInstance().requestGaussianOffsetBuffer(deviceID);
     const MTL::Buffer* gaussArrayBuffer = DeviceCache::getInstance().requestGaussianArrayBuffer(deviceID);
 
+    cmdMng
+    ->reset()
+    ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
+    ->commandBuffer()
+    ->pipeline("aliceVision::depthMap::createMipmappedArrayLevel_kernel", "AVDepthMapMTLKernels");
+
     for(size_t l = 1; l < levels; ++l)
     {
         // current level width/height
@@ -56,20 +62,19 @@ void mtl_createMipmappedArrayFromImage(MTLMipmappedTexture<MTLRGBA>* out_mipmapp
         };
 
         cmdMng
-        ->reset()
-        ->loadLibrary("AVDepthMapMTLKernels", "AVDepthMap")
-        ->commandBuffer()
-        ->pipeline("aliceVision::depthMap::createMipmappedArrayLevel_kernel", "AVDepthMapMTLKernels")
         ->commandEncoder()
         ->bind(out_mipmappedArrayPtr->getBuffer(), 0)
         ->bind(gaussOffsetBuffer, 1)
         ->bind(gaussArrayBuffer, 2)
         ->pushConstants(pc)
         ->dispatchDimensions({width, height, 1}, {16, 16, 1})
-        ->endRecording()
-        ->commitCommands()
-        ->waitAll();
+        ->endRecording();
+        // ->commitCommands();
+
     }
+
+    cmdMng
+    ->commitCommands();
 
 }
 

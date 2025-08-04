@@ -60,7 +60,7 @@ void getDeviceMemoryInfo(double& availableMB, double& usedMB, double& totalMB, c
     size_t iused;
     size_t itotal;
 
-    const MTL::Device* device = DeviceManager::getInstance().getDevice(deviceID);
+    const NS::SharedPtr<MTL::Device>& device = DeviceManager::getInstance().getDevice(deviceID);
 
     // On non-uniform-memory devices, we add the host memory as it is still fully usable my Metal
     uint64_t host_memsize = 0;

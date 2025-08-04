@@ -57,6 +57,8 @@ class Refine
      */
     double getDeviceMemoryConsumptionUnpadded() const;
 
+    MTLSize<2> getDeviceDepthSimMapSize() const;
+
     /**
      * @brief Refine for a single R camera the Semi-Global Matching depth/sim map.
      * @param[in] tile The given tile for Refine computation

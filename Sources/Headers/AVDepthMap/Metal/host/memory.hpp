@@ -374,7 +374,7 @@ class MTLHostMemoryHeap : public MTLMemorySizeBase<Type, Dim>
 template<class Type, unsigned Dim>
 class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 {
-    MTL::Buffer* buffer = nullptr;
+    NS::SharedPtr<MTL::Buffer> buffer = NS::SharedPtr<MTL::Buffer>();
     uint64_t deviceID;
 
   public:
@@ -382,14 +382,14 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
     bool cpuVisible = false;
 
     MTLDeviceMemoryPitched()
-      : buffer(nullptr)
+      : buffer(NS::SharedPtr<MTL::Buffer>())
     {}
 
-    explicit MTLDeviceMemoryPitched(const MTLSize<Dim>& size, uint64_t deviceID, bool allocateCpuVisible) { allocate(size, deviceID, allocateCpuVisible); }
+    explicit MTLDeviceMemoryPitched(const MTLSize<Dim>& size, uint64_t deviceID, bool allocateCpuVisible, const std::string& name) { allocate(name, size, deviceID, allocateCpuVisible); }
 
-    explicit MTLDeviceMemoryPitched(const MTLHostMemoryHeap<Type, Dim>& rhs, uint64_t deviceID)
+    explicit MTLDeviceMemoryPitched(const MTLHostMemoryHeap<Type, Dim>& rhs, uint64_t deviceID, const std::string& name)
     {
-        allocate(rhs.getSize(), deviceID, rhs.cpuVisible);
+        allocate(name, rhs.getSize(), deviceID, rhs.cpuVisible);
         copyFrom(rhs);
     }
 
@@ -397,14 +397,14 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 
     MTLDeviceMemoryPitched<Type, Dim>& operator=(const MTLDeviceMemoryPitched<Type, Dim>& rhs)
     {
-        if (buffer == nullptr)
+        if (buffer.get() == nullptr)
         {
-            allocate(rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
+            allocate(std::string("IMPLICIT COPY: ") + std::string(rhs.getBuffer()->label()->utf8String()), rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
         }
         else if (this->getSize() != rhs.getSize())
         {
             deallocate();
-            allocate(rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
+            allocate(std::string("IMPLICIT COPY WITH NEW SIZE: ") + std::string(rhs.getBuffer()->label()->utf8String()), rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
         }
         copyFrom(rhs);
         return *this;
@@ -417,7 +417,7 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 
     void copyTo(Type* dst, size_t sx, size_t sy) const;
 
-    MTL::Buffer* getBuffer() const { return buffer; }
+    MTL::Buffer* getBuffer() const { return buffer.get(); }
 
     Type& operator()(size_t x) { return buffer[x]; }
 
@@ -440,13 +440,13 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
         return (Type*)ptr;
     }
 
-    void allocate(const MTLSize<Dim>& size, uint64_t deviceID, bool allocateCpuVisible = false)
+    void allocate(const std::string& name, const MTLSize<Dim>& size, uint64_t deviceID, bool allocateCpuVisible = false)
     {
         this->setSize(size, false);
         this->deviceID = deviceID;
 
         // Get Device
-        MTL::Device* device = DeviceManager::getInstance().getDevice(deviceID);
+        const NS::SharedPtr<MTL::Device>& device = DeviceManager::getInstance().getDevice(deviceID);
 
         // Check if the device needs explicit synchronization
         MTL::ResourceOptions options = MTL::ResourceStorageModePrivate;
@@ -477,21 +477,25 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 
         if (Dim == 2)
         {
-            MTL::Buffer* _buffer = device->newBuffer(this->getUnpaddedBytesInRow() * (this->getUnitsInDim(1) * sizeof(Type)), options);
-            _buffer->retain();
-            buffer = _buffer;
+            buffer = NS::TransferPtr(device->newBuffer(this->getUnpaddedBytesInRow() * (this->getUnitsInDim(1) * sizeof(Type)), options));
             if (!buffer)
                 ALICEVISION_THROW_ERROR("Failed to allocate Metal device memory in " << __FILE__ << " at " << __LINE__ << ", called from " << __FUNCTION__);
+            // Set buffer name
+            NS::SharedPtr<NS::String> label = NS::TransferPtr(NS::String::alloc()->init(name.c_str(), NS::UTF8StringEncoding));
+            buffer->setLabel(label.get());
             // Pitch equals the width of the buffer
             this->setPitch(this->getUnpaddedBytesInRow());
         }
         else if (Dim == 3)
         {
-            MTL::Buffer* _buffer = device->newBuffer(this->getUnpaddedBytesInRow() * (this->getUnitsInDim(1) * sizeof(Type)) * (this->getUnitsInDim(2) * sizeof(Type)), options);
-            _buffer->retain();
-            buffer = _buffer;
+            buffer = NS::TransferPtr(device->newBuffer(this->getUnpaddedBytesInRow() * (this->getUnitsInDim(1) * sizeof(Type)) * (this->getUnitsInDim(2) * sizeof(Type)), options));
             if (!buffer)
                 ALICEVISION_THROW_ERROR("Failed to allocate Metal device memory in " << __FILE__ << " at " << __LINE__ << ", called from " << __FUNCTION__);
+
+            // Set buffer name
+            NS::SharedPtr<NS::String> label = NS::TransferPtr(NS::String::alloc()->init(name.c_str(), NS::UTF8StringEncoding));
+            buffer->setLabel(label.get());
+            // Pitch equals the width of the buffer
             this->setPitch(this->getUnpaddedBytesInRow());
 
             ALICEVISION_LOG_DEBUG("GPU 3D allocation: " << this->getUnitsInDim(0) << "x" << this->getUnitsInDim(1) << "x" << this->getUnitsInDim(2)
@@ -509,12 +513,7 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 
     void deallocate()
     {
-        if (buffer == nullptr)
-            return;
-
-        buffer->release();
-
-        buffer = nullptr;
+        ALICEVISION_LOG_TRACE("Deallocated MTLBuffer (LABEL: " << std::string(buffer->label()->utf8String()) << ") with byte size: " << buffer->length() << " B");
     }
 
     uint64_t getDeviceID() const { return deviceID; }
@@ -527,7 +526,7 @@ class MTLDeviceMemoryPitched : public MTLMemorySizeBase<Type, Dim>
 template<class Type>
 class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
 {
-    MTL::Buffer* buffer = nullptr;
+    NS::SharedPtr<MTL::Buffer> buffer = NS::SharedPtr<MTL::Buffer>();
     uint64_t deviceID;
 
   public:
@@ -535,21 +534,21 @@ class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
     bool cpuVisible = false;
 
     MTLDeviceMemory()
-      : buffer(nullptr)
+      : buffer(NS::SharedPtr<MTL::Buffer>())
     {}
 
-    explicit MTLDeviceMemory(const size_t size, uint64_t deviceID, bool allocateCpuVisible) { allocate(size, deviceID, allocateCpuVisible); }
+    explicit MTLDeviceMemory(const size_t size, uint64_t deviceID, bool allocateCpuVisible, const std::string& name) { allocate(name, size, deviceID, allocateCpuVisible); }
 
-    explicit inline MTLDeviceMemory(const MTLHostMemoryHeap<Type, 1>& rhs, uint64_t deviceID, bool allocateCpuVisible)
+    explicit inline MTLDeviceMemory(const MTLHostMemoryHeap<Type, 1>& rhs, uint64_t deviceID, bool allocateCpuVisible, const std::string& name)
     {
-        allocate(rhs.getSize(), deviceID, allocateCpuVisible);
+        allocate(name, rhs.getSize(), deviceID, allocateCpuVisible);
         copy(*this, rhs);
     }
 
     // constructor with synchronous copy
-    MTLDeviceMemory(const Type* inbuf, const size_t size, uint64_t deviceID, bool allocateCpuVisible)
+    MTLDeviceMemory(const Type* inbuf, const size_t size, uint64_t deviceID, bool allocateCpuVisible, const std::string& name)
     {
-        allocate(size, deviceID, allocateCpuVisible);
+        allocate(name, size, deviceID, allocateCpuVisible);
         copyFrom(inbuf, size);
     }
 
@@ -559,12 +558,12 @@ class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
     {
         if (buffer == nullptr)
         {
-            allocate(rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
+            allocate(std::string("IMPLICIT COPY: ") + std::string(rhs.getBuffer()->label()->utf8String()), rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
         }
         else if (this->getSize() != rhs.getSize())
         {
             deallocate();
-            allocate(rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
+            allocate(std::string("IMPLICIT COPY WITH NEW SIZE: ") + std::string(rhs.getBuffer()->label()->utf8String()), rhs.getSize(), rhs.getDeviceID(), rhs.cpuVisible);
         }
         copy(*this, rhs);
         return *this;
@@ -578,13 +577,13 @@ class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
     // TODO: Adapt to Metal
     const unsigned char* getBytePtr() const { return (unsigned char*)buffer; }
 
-    void allocate(const MTLSize<1>& size, uint64_t deviceID, bool allocateCpuVisible = false)
+    void allocate(const std::string& name, const MTLSize<1>& size, uint64_t deviceID, bool allocateCpuVisible = false)
     {
         this->setSize(size, true);
         this->deviceID = deviceID;
 
         // Get Device
-        MTL::Device* device = DeviceManager::getInstance().getDevice(deviceID);
+        const NS::SharedPtr<MTL::Device>& device = DeviceManager::getInstance().getDevice(deviceID);
 
         // Check if the device needs explicit synchronization
         MTL::ResourceOptions options = MTL::ResourceStorageModePrivate;
@@ -613,22 +612,18 @@ class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
             this->cpuVisible = true;
         }
 
-        MTL::Buffer* _buffer = device->newBuffer(this->getBytesUnpadded(), options);
-        _buffer->retain();
-        buffer = _buffer;
+        buffer = NS::TransferPtr(device->newBuffer(this->getBytesUnpadded(), options));
         if (!buffer)
             ALICEVISION_THROW_ERROR("Failed to allocate Metal device memory in " << __FILE__ << " at " << __LINE__ << ", called from " << __FUNCTION__);
+        // Set buffer name
+        NS::SharedPtr<NS::String> label = NS::TransferPtr(NS::String::alloc()->init(name.c_str(), NS::UTF8StringEncoding));
+        buffer->setLabel(label.get());
     }
-    void allocate(const size_t size, uint64_t deviceID, bool allocateCpuVisible) { allocate(MTLSize<1>(size), deviceID, allocateCpuVisible); }
+    void allocate(const std::string& name, const size_t size, uint64_t deviceID, bool allocateCpuVisible) { allocate(name, MTLSize<1>(size), deviceID, allocateCpuVisible); }
 
     void deallocate()
     {
-        if (buffer == nullptr)
-            return;
-
-        buffer->release();
-
-        buffer = nullptr;
+        ALICEVISION_LOG_TRACE("Deallocated MTLBuffer (LABEL: " << std::string(buffer->label()->utf8String()) << ") with byte size: " << buffer->length() << " B");
     }
 
     void copyFrom(const Type* inbuf, const size_t num)
@@ -644,7 +639,7 @@ class MTLDeviceMemory : public MTLMemorySizeBase<Type, 1>
         {
             // Create a staging buffer
             MTLDeviceMemory stagingBuffer = MTLDeviceMemory();
-            stagingBuffer.allocate(this->getSize(), this->getDeviceID(), true);
+            stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(this->getBuffer()->label()->utf8String()), this->getSize(), this->getDeviceID(), true);
             *this = stagingBuffer;
         }
     }
@@ -658,15 +653,13 @@ template<class Type, unsigned Dim>
 void MTLDeviceMemoryPitched<Type, Dim>::copyFrom(const MTLDeviceMemoryPitched<Type, Dim>& src)
 {
     // Get blit encoder from Device Manager
-    MTL::CommandBuffer* cmdBuffer = DeviceManager::getInstance().getCommandQueue(this->getDeviceID())->commandBuffer();
-    MTL::BlitCommandEncoder* blitCmdEncoder = cmdBuffer->blitCommandEncoder();
+    NS::SharedPtr<MTL::CommandBuffer> cmdBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(this->getDeviceID())->commandBuffer());
+    NS::SharedPtr<MTL::BlitCommandEncoder> blitCmdEncoder = NS::TransferPtr(cmdBuffer->blitCommandEncoder());
     ALICEVISION_RUNTIME_ASSERT(this->getDeviceID() == src.getDeviceID(), "Buffer copies must be performed within the same device!");
     blitCmdEncoder->copyFromBuffer(src.getBuffer(), 0, this->getBuffer(), 0, src.getBuffer()->length());
     blitCmdEncoder->endEncoding();
     cmdBuffer->commit();
     cmdBuffer->waitUntilCompleted();
-    blitCmdEncoder->release();
-    cmdBuffer->release();
 }
 
 template<class Type, unsigned Dim>
@@ -683,7 +676,7 @@ void MTLDeviceMemoryPitched<Type, Dim>::copyFrom(const MTLHostMemoryHeap<Type, D
     {
         // Copy with staging buffer
         MTLDeviceMemoryPitched stagingBuffer = MTLDeviceMemoryPitched();
-        stagingBuffer.allocate(this->getSize(), this->getDeviceID(), true);
+        stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(this->getBuffer()->label()->utf8String()), this->getSize(), this->getDeviceID(), true);
         stagingBuffer.copyFrom(src);
         *this = stagingBuffer;
     }
@@ -705,7 +698,7 @@ void MTLDeviceMemoryPitched<Type, Dim>::copyFrom(const Type* src, size_t sx, siz
         {
             // Copy with staging buffer
             MTLDeviceMemoryPitched stagingBuffer = MTLDeviceMemoryPitched();
-            stagingBuffer.allocate(this->getSize(), this->getDeviceID(), true);
+            stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(this->getBuffer()->label()->utf8String()), this->getSize(), this->getDeviceID(), true);
             stagingBuffer.copyFrom(src, sx, sy);
             *this = stagingBuffer;
         }
@@ -720,22 +713,20 @@ void MTLHostMemoryHeap<Type, Dim>::copyFrom(const MTLDeviceMemoryPitched<Type, D
     else if (src.cpuVisible && src.explicitSyncRequired)
     {
         // Get blit encoder from Device Manager
-        MTL::CommandBuffer* cmdBuffer = DeviceManager::getInstance().getCommandQueue(src.getDeviceID())->commandBuffer();
-        MTL::BlitCommandEncoder* blitCmdEncoder = cmdBuffer->blitCommandEncoder();
+        NS::SharedPtr<MTL::CommandBuffer> cmdBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(src.getDeviceID())->commandBuffer());
+        NS::SharedPtr<MTL::BlitCommandEncoder> blitCmdEncoder = NS::TransferPtr(cmdBuffer->blitCommandEncoder());
         // Encode a synchronization
         blitCmdEncoder->synchronizeResource(src.getBuffer());
         blitCmdEncoder->endEncoding();
         cmdBuffer->commit();
         cmdBuffer->waitUntilCompleted();
-        blitCmdEncoder->release();
-        cmdBuffer->release();
         // Copy the data
         memcpy(this->getBuffer(), src.getBuffer()->contents(), src.getUnitsTotal() * sizeof(Type));
     }
     else
     {
         MTLDeviceMemoryPitched<Type, Dim> stagingBuffer = MTLDeviceMemoryPitched<Type, Dim>();
-        stagingBuffer.allocate(src.getSize(), src.getDeviceID(), true);
+        stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(src.getBuffer()->label()->utf8String()), src.getSize(), src.getDeviceID(), true);
         stagingBuffer = src;
         this->copyFrom(stagingBuffer);
     }
@@ -751,22 +742,20 @@ void MTLDeviceMemoryPitched<Type, Dim>::copyTo(Type* dst, size_t sx, size_t sy) 
         else if (this->cpuVisible && this->explicitSyncRequired)
         {
             // Get blit encoder from Device Manager
-            MTL::CommandBuffer* cmdBuffer = DeviceManager::getInstance().getCommandQueue(this->getDeviceID())->commandBuffer();
-            MTL::BlitCommandEncoder* blitCmdEncoder = cmdBuffer->blitCommandEncoder();
+            NS::SharedPtr<MTL::CommandBuffer> cmdBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(this->getDeviceID())->commandBuffer());
+            NS::SharedPtr<MTL::BlitCommandEncoder> blitCmdEncoder = NS::TransferPtr(cmdBuffer->blitCommandEncoder());
             // Encode a synchronization
             blitCmdEncoder->synchronizeResource(this->getBuffer());
             blitCmdEncoder->endEncoding();
             cmdBuffer->commit();
             cmdBuffer->waitUntilCompleted();
-            blitCmdEncoder->release();
-            cmdBuffer->release();
             // Copy the data
             memcpy(dst, this->getBuffer()->contents(), this->getUnitsTotal() * sizeof(Type));
         }
         else
         {
             MTLDeviceMemoryPitched<Type, Dim> stagingBuffer = MTLDeviceMemoryPitched<Type, Dim>();
-            stagingBuffer.allocate(this->getSize(), this->getDeviceID(), true);
+            stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(this->getBuffer()->label()->utf8String()), this->getSize(), this->getDeviceID(), true);
             stagingBuffer = *this;
             stagingBuffer.copyTo(dst, sx, sy);
         }
@@ -791,15 +780,13 @@ void copy(MTLHostMemoryHeap<Type, 1>& _dst, const MTLDeviceMemory<Type>& _src)
     else if (_src.cpuVisible && _src.explicitSyncRequired)
     {
         // Get blit encoder from Device Manager
-        MTL::CommandBuffer* cmdBuffer = DeviceManager::getInstance().getCommandQueue(_src.getDeviceID())->commandBuffer();
-        MTL::BlitCommandEncoder* blitCmdEncoder = cmdBuffer->blitCommandEncoder();
+        NS::SharedPtr<MTL::CommandBuffer> cmdBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(_src.getDeviceID())->commandBuffer());
+        NS::SharedPtr<MTL::BlitCommandEncoder> blitCmdEncoder = NS::TransferPtr(cmdBuffer->blitCommandEncoder());
         // Encode a synchronization
         blitCmdEncoder->synchronizeResource(_src.getBuffer());
         blitCmdEncoder->endEncoding();
         cmdBuffer->commit();
         cmdBuffer->waitUntilCompleted();
-        blitCmdEncoder->release();
-        cmdBuffer->release();
         // Copy the data
         memcpy(_dst.getBuffer(), _src.getBuffer()->contents(), _src.getUnitsTotal() * sizeof(Type));
     }
@@ -807,7 +794,7 @@ void copy(MTLHostMemoryHeap<Type, 1>& _dst, const MTLDeviceMemory<Type>& _src)
     {
         // Create staging buffer
         MTLDeviceMemory<Type> stagingBuffer = MTLDeviceMemory<Type>();
-        stagingBuffer.allocate(_src.getSize(), _src.getDeviceID(), true);
+        stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(_src.getBuffer()->label()->utf8String()), _src.getSize(), _src.getDeviceID(), true);
         stagingBuffer = _src;
         copy(_dst, stagingBuffer);
     }
@@ -840,7 +827,7 @@ void copy(MTLDeviceMemory<Type>& _dst, const MTLHostMemoryHeap<Type, 1>& _src)
     {
         // Create staging buffer
         MTLDeviceMemory<Type> stagingBuffer = MTLDeviceMemory<Type>();
-        stagingBuffer.allocate(_dst.getSize(), _dst.getDeviceID(), true);
+        stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(_dst.getBuffer()->label()->utf8String()), _dst.getSize(), _dst.getDeviceID(), true);
         copy(stagingBuffer, _src);
         _dst = stagingBuffer;
     }
@@ -889,15 +876,13 @@ void copy(Type* _dst, size_t sx, size_t sy, size_t sz, const MTLDeviceMemoryPitc
         else if (_src.cpuVisible && _src.explicitSyncRequired)
         {
             // Get blit encoder from Device Manager
-            MTL::CommandBuffer* cmdBuffer = DeviceManager::getInstance().getCommandQueue(_src.getDeviceID())->commandBuffer();
-            MTL::BlitCommandEncoder* blitCmdEncoder = cmdBuffer->blitCommandEncoder();
+            NS::SharedPtr<MTL::CommandBuffer> cmdBuffer = NS::TransferPtr(DeviceManager::getInstance().getCommandQueue(_src.getDeviceID())->commandBuffer());
+            NS::SharedPtr<MTL::BlitCommandEncoder> blitCmdEncoder = NS::TransferPtr(cmdBuffer->blitCommandEncoder());
             // Encode a synchronization
             blitCmdEncoder->synchronizeResource(_src.getBuffer());
             blitCmdEncoder->endEncoding();
             cmdBuffer->commit();
             cmdBuffer->waitUntilCompleted();
-            blitCmdEncoder->release();
-            cmdBuffer->release();
             const uint8_t* srcBase = static_cast<const uint8_t*>(_src->contents());
             Type* dstBase = static_cast<Type*>(_dst);
             for (size_t z = 0; z < sz; ++z)
@@ -913,7 +898,7 @@ void copy(Type* _dst, size_t sx, size_t sy, size_t sz, const MTLDeviceMemoryPitc
         {
             // Create a staging buffer
             MTLDeviceMemoryPitched<Type, Dim> stagingBuffer = MTLDeviceMemoryPitched<Type, Dim>();
-            stagingBuffer.allocate(_src.getSize(), _src.getDeviceID(), true);
+            stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(_src.getBuffer()->label()->utf8String()), _src.getSize(), _src.getDeviceID(), true);
             stagingBuffer = _src;
             copy(_dst, sx, sy, sz, stagingBuffer);
         }
@@ -964,7 +949,7 @@ void copy(MTLDeviceMemoryPitched<Type, Dim>& _dst, const Type* _src, size_t sx, 
         {
             // Create a staging buffer
             MTLDeviceMemoryPitched<Type, Dim> stagingBuffer = MTLDeviceMemoryPitched<Type, Dim>();
-            stagingBuffer.allocate(_dst.getSize(), _dst.getDeviceID(), true);
+            stagingBuffer.allocate(std::string("STAGING BUFFER FOR ") + std::string(_dst.getBuffer()->label()->utf8String()), _dst.getSize(), _dst.getDeviceID(), true);
             copy(stagingBuffer, _src, sx, sy, sz);
             _dst = stagingBuffer;
         }

@@ -328,7 +328,7 @@ class CudaHostMemoryHeap : public CudaMemorySizeBase<Type, Dim>
     METAL_QUALIFIER Type* buffer = nullptr;
 
     #if !defined(__METAL__)
-    MTL::Buffer* _mtlBuffer = nullptr;
+    NS::SharedPtr<MTL::Buffer> _mtlBuffer = NS::SharedPtr<MTL::Buffer>();
     #endif
 
   public:

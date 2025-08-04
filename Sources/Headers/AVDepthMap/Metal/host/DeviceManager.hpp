@@ -23,9 +23,9 @@ public:
 
     const std::vector<uint64_t>& getDeviceIDs() const;
     const uint64_t getPriorityDeviceID() const;
-    const std::unordered_map<uint64_t, MTL::Device*>& getDeviceMap() const;
-    MTL::Device* getDevice(uint64_t forDeviceID) const;
-    MTL::CommandQueue* getCommandQueue(uint64_t forDeviceID) const;
+    const std::unordered_map<uint64_t, NS::SharedPtr<MTL::Device>>& getDeviceMap() const;
+    const NS::SharedPtr<MTL::Device>& getDevice(uint64_t forDeviceID) const;
+    const NS::SharedPtr<MTL::CommandQueue>& getCommandQueue(uint64_t forDeviceID) const;
     MTLCommandManager* getCommandManager(uint64_t forDeviceID);
 
     // no copy constructor
@@ -36,13 +36,13 @@ public:
 
 private:
     DeviceManager();
-    ~DeviceManager();
+    ~DeviceManager() = default;
 
     static DeviceManager* _instance;
 
     std::vector<uint64_t> _deviceIDs;
-    std::unordered_map<uint64_t, MTL::Device*> _deviceMap;
-    std::unordered_map<uint64_t, MTL::CommandQueue*> _commandQueueMap;
+    std::unordered_map<uint64_t, NS::SharedPtr<MTL::Device>> _deviceMap;
+    std::unordered_map<uint64_t, NS::SharedPtr<MTL::CommandQueue>> _commandQueueMap;
     std::unordered_map<uint64_t, MTLCommandManager> _commandManagerMap;
 };
 

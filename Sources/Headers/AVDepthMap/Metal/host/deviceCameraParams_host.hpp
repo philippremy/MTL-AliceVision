@@ -25,38 +25,32 @@ public:
   explicit DeviceCameraParamsManager(uint64_t deviceID)
   {
       const auto device = DeviceManager::getInstance().getDevice(deviceID);
-      MTL::Buffer* buffer = device->newBuffer(ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS * sizeof(DeviceCameraParams), MTL::ResourceStorageModePrivate);
-      buffer->retain();
-      _camParamArray = buffer;
+      _camParamArray = NS::TransferPtr(device->newBuffer(ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS * sizeof(DeviceCameraParams), MTL::ResourceStorageModePrivate));
+      _stagingBuffer = NS::TransferPtr(device->newBuffer(ALICEVISION_DEVICE_MAX_CONSTANT_CAMERA_PARAM_SETS * sizeof(DeviceCameraParams), MTL::ResourceStorageModeManaged));
   }
 
-  ~DeviceCameraParamsManager()
-  {
-    if (_camParamArray)
-      _camParamArray->release();
-  }
+  ~DeviceCameraParamsManager() = default;
 
   void insertCameraParams(const DeviceCameraParams& camParams, int offset)
   {
-        // Create Staging Buffer
-        MTL::Buffer* stagingBuffer = _camParamArray->device()->newBuffer(sizeof(DeviceCameraParams), MTL::ResourceStorageModeManaged);
-        memcpy(stagingBuffer->contents(), &camParams, sizeof(DeviceCameraParams));
-        stagingBuffer->didModifyRange(NS::Range(0, sizeof(DeviceCameraParams)));
+        // Copy into staging buffer
+        memcpy(_stagingBuffer->contents(), &camParams, sizeof(DeviceCameraParams));
+        _stagingBuffer->didModifyRange(NS::Range(0, sizeof(DeviceCameraParams)));
         // Copy the data into the first mip level
         const auto queue = DeviceManager::getInstance().getCommandQueue(_camParamArray->device()->registryID());
         const auto commandBuffer = queue->commandBuffer();
         const auto blitCommandEncoder = commandBuffer->blitCommandEncoder();
-        blitCommandEncoder->copyFromBuffer(stagingBuffer, 0, _camParamArray, offset * sizeof(DeviceCameraParams), sizeof(DeviceCameraParams));
+        blitCommandEncoder->copyFromBuffer(_stagingBuffer.get(), 0, _camParamArray.get(), offset * sizeof(DeviceCameraParams), sizeof(DeviceCameraParams));
         blitCommandEncoder->endEncoding();
         commandBuffer->commit();
         commandBuffer->waitUntilCompleted();
-        stagingBuffer->release();
   }
 
-  inline MTL::Buffer* getCameraParamsBuffer() const { return _camParamArray; }
+  inline MTL::Buffer* getCameraParamsBuffer() const { return _camParamArray.get(); }
 
 private:
-  MTL::Buffer* _camParamArray;
+  NS::SharedPtr<MTL::Buffer> _camParamArray;
+  NS::SharedPtr<MTL::Buffer> _stagingBuffer;
 };
 
 }

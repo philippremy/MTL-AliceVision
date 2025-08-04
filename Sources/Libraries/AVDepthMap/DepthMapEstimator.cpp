@@ -19,6 +19,7 @@
 #include <AVDepthMap/Metal/host/utils.hpp>
 #include <AVDepthMap/Metal/host/patchPattern.hpp>
 #include <AVDepthMap/Metal/host/DeviceCache.hpp>
+#include <AVDepthMap/Metal/host/DeviceManager.hpp>
 
 namespace aliceVision {
 namespace depthMap {
@@ -267,8 +268,8 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
         buildCustomPatchPattern(_depthMapParams.customPatchPattern, mtlDeviceID);
 
     // allocate Sgm and Refine per stream in device memory
-    std::vector<Sgm> sgmPerStream;
-    std::vector<Refine> refinePerStream;
+    std::vector<std::unique_ptr<Sgm>> sgmPerStream;
+    std::vector<std::unique_ptr<Refine>> refinePerStream;
 
     sgmPerStream.reserve(nbStreams);
     refinePerStream.reserve(_depthMapParams.useRefine ? nbStreams : 0);
@@ -280,12 +281,12 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
 
         // initialize Sgm objects
         for (int i = 0; i < nbStreams; ++i)
-            sgmPerStream.emplace_back(_mp, _tileParams, _sgmParams, sgmComputeDepthSimMap, sgmComputeNormalMap, mtlDeviceID);
+            sgmPerStream.emplace_back(std::make_unique<Sgm>(_mp, _tileParams, _sgmParams, sgmComputeDepthSimMap, sgmComputeNormalMap, mtlDeviceID));
 
         // initialize Refine objects
         if (_depthMapParams.useRefine)
             for (int i = 0; i < nbStreams; ++i)
-                refinePerStream.emplace_back(_mp, _tileParams, _refineParams, mtlDeviceID);
+                refinePerStream.emplace_back(std::make_unique<Refine>(_mp, _tileParams, _refineParams, mtlDeviceID));
     }
 
     // allocate final deth/similarity map tile list in host memory
@@ -303,9 +304,9 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
         for (int j = 0; j < nbTilesPerCamera; ++j)
         {
             if (_depthMapParams.useRefine)
-                depthSimMapTiles.at(j).allocate(refinePerStream.front().getDeviceDepthSimMap().getSize());
+                depthSimMapTiles.at(j).allocate(refinePerStream.front()->getDeviceDepthSimMapSize());
             else  // final depth/similarity map is SGM only
-                depthSimMapTiles.at(j).allocate(sgmPerStream.front().getDeviceDepthSimMap().getSize());
+                depthSimMapTiles.at(j).allocate(sgmPerStream.front()->getDeviceDepthSimMapSize());
         }
     }
 
@@ -362,100 +363,122 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
         }
 
         // compute each batch tile
-        for (int i = firstTileIndex; i < lastTileIndex; ++i)
-        {
-            Tile& tile = tiles.at(i);
-            const int batchCamIndex = tile.rc % nbRcPerBatch;
+         for (int i = firstTileIndex; i < lastTileIndex; ++i)
+         {
+             Tile& tile = tiles.at(i);
+             const int batchCamIndex = tile.rc % nbRcPerBatch;
 
-            // do not compute empty ROI
-            // some images in the dataset may be smaller than others
-            if (tile.roi.isEmpty())
-                continue;
+             // do not compute empty ROI
+             // some images in the dataset may be smaller than others
+             if (tile.roi.isEmpty())
+             {
+                 ALICEVISION_LOG_INFO(tile << "Skipping tile (ROI is empty).");
+                 sgmPerStream.at(i).reset(nullptr);
+                 if(_depthMapParams.useRefine)
+                     refinePerStream.at(i).reset(nullptr);
+                 continue;
+             }
 
-            // get tile result depth/similarity map in host memory
-            MTLHostMemoryHeap<float2, 2>& tileDepthSimMap_hmh = depthSimMapTilePerCam.at(batchCamIndex).at(tile.id);
+             // get tile result depth/similarity map in host memory
+             MTLHostMemoryHeap<float2, 2>& tileDepthSimMap_hmh = depthSimMapTilePerCam.at(batchCamIndex).at(tile.id);
 
-            // check T cameras
-            if (tile.sgmTCams.empty() || (_depthMapParams.useRefine && tile.refineTCams.empty()))  // no T camera found
-            {
-                resetDepthSimMap(tileDepthSimMap_hmh);
-                continue;
-            }
+             // check T cameras
+             if (tile.sgmTCams.empty() || (_depthMapParams.useRefine && tile.refineTCams.empty()))  // no T camera found
+             {
+                 resetDepthSimMap(tileDepthSimMap_hmh);
+                 ALICEVISION_LOG_INFO(tile << "Skipping tile (no T camera found).");
+                 sgmPerStream.at(i).reset(nullptr);
+                 if(_depthMapParams.useRefine)
+                     refinePerStream.at(i).reset(nullptr);
+                 continue;
+             }
 
-            // build tile SGM depth list
-            SgmDepthList sgmDepthList(_mp, _sgmParams, tile);
+             // build tile SGM depth list
+             SgmDepthList sgmDepthList(_mp, _sgmParams, tile);
 
-            // compute the R camera depth list
-            sgmDepthList.computeListRc();
+             // compute the R camera depth list
+             sgmDepthList.computeListRc();
 
-            // check number of depths
-            if (sgmDepthList.getDepths().empty())  // no depth found
-            {
-                resetDepthSimMap(tileDepthSimMap_hmh);
-                depthMinMaxTilePerCam.at(batchCamIndex).at(tile.id) = {0.f, 0.f};
-                continue;
-            }
+             // check number of depths
+             if (sgmDepthList.getDepths().empty())  // no depth found
+             {
+                 resetDepthSimMap(tileDepthSimMap_hmh);
+                 depthMinMaxTilePerCam.at(batchCamIndex).at(tile.id) = {0.f, 0.f};
+                 ALICEVISION_LOG_INFO(tile << "Skipping tile (no depths found).");
+                 sgmPerStream.at(i).reset(nullptr);
+                 if(_depthMapParams.useRefine)
+                     refinePerStream.at(i).reset(nullptr);
+                 continue;
+             }
 
-            // remove T cameras with no depth found.
-            sgmDepthList.removeTcWithNoDepth(tile);
+             // remove T cameras with no depth found.
+             sgmDepthList.removeTcWithNoDepth(tile);
 
-            // store min/max depth
-            depthMinMaxTilePerCam.at(batchCamIndex).at(tile.id) = sgmDepthList.getMinMaxDepths();
+             // store min/max depth
+             depthMinMaxTilePerCam.at(batchCamIndex).at(tile.id) = sgmDepthList.getMinMaxDepths();
 
-            // log debug camera / depth information
-            sgmDepthList.logRcTcDepthInformation();
+             // log debug camera / depth information
+             sgmDepthList.logRcTcDepthInformation();
 
-            // check if starting and stopping depth are valid
-            sgmDepthList.checkStartingAndStoppingDepth();
+             // check if starting and stopping depth are valid
+             sgmDepthList.checkStartingAndStoppingDepth();
 
-            // compute Semi-Global Matching
-            Sgm& sgm = sgmPerStream.at(batchCamIndex);
-            sgm.sgmRc(tile, sgmDepthList);
+             // compute Semi-Global Matching
+             Sgm* sgm = sgmPerStream.at(i).get();
+             sgm->sgmRc(tile, sgmDepthList);
 
-            if (_depthMapParams.useRefine)
-            {
-                // smooth SGM thickness map
-                // in order to be a proper Refine input parameter
-                sgm.smoothThicknessMap(tile, _refineParams);
+             if (_depthMapParams.useRefine)
+             {
+                 // smooth SGM thickness map
+                 // in order to be a proper Refine input parameter
+                 sgm->smoothThicknessMap(tile, _refineParams);
 
-                // compute Refine
-                Refine& refine = refinePerStream.at(batchCamIndex);
-                refine.refineRc(tile, sgm.getDeviceDepthThicknessMap(), sgm.getDeviceNormalMap());
+                 // compute Refine
+                 Refine* refine = refinePerStream.at(i).get();
+                 refine->refineRc(tile, sgm->getDeviceDepthThicknessMap(), sgm->getDeviceNormalMap());
 
-                // copy Refine depth/similarity map from device to host
-                tileDepthSimMap_hmh.copyFrom(refine.getDeviceDepthSimMap());
-            }
-            else
-            {
-                // copy Sgm depth/similarity map from device to host
-                tileDepthSimMap_hmh.copyFrom(sgm.getDeviceDepthSimMap());
-            }
-        }
+                 // copy Refine depth/similarity map from device to host
+                 tileDepthSimMap_hmh.copyFrom(refine->getDeviceDepthSimMap());
+             }
+             else
+             {
+                 // copy Sgm depth/similarity map from device to host
+                 tileDepthSimMap_hmh.copyFrom(sgm->getDeviceDepthSimMap());
+             }
 
-        // find first and last tile R camera
-        const int firstRc = tiles.at(firstTileIndex).rc;
-        int lastRc = tiles.at(lastTileIndex - 1).rc;
+             // Free device resources early
+             sgmPerStream.at(i).reset(nullptr);
+             if(_depthMapParams.useRefine)
+                 refinePerStream.at(i).reset(nullptr);
+         }
 
-        // check if last tile depth map is finished
-        if (lastTileIndex < tiles.size() && (tiles.at(lastTileIndex).rc == lastRc))
-            --lastRc;
+         // find first and last tile R camera
+         const int firstRc = tiles.at(firstTileIndex).rc;
+         int lastRc = tiles.at(lastTileIndex - 1).rc;
 
-        // write depth/sim map result
-        for (int c = firstRc; c <= lastRc; ++c)
-        {
-            const int batchCamIndex = c % nbRcPerBatch;
+         // check if last tile depth map is finished
+         if (lastTileIndex < tiles.size() && (tiles.at(lastTileIndex).rc == lastRc))
+             --lastRc;
 
-            if (_depthMapParams.useRefine)
-                writeDepthSimMapFromTileList(
-                  c, _mp, _tileParams, _tileRoiList, depthSimMapTilePerCam.at(batchCamIndex), _refineParams.scale, _refineParams.stepXY);
-            else
-                writeDepthSimMapFromTileList(
-                  c, _mp, _tileParams, _tileRoiList, depthSimMapTilePerCam.at(batchCamIndex), _sgmParams.scale, _sgmParams.stepXY);
+         // write depth/sim map result
+         for (int c = firstRc; c <= lastRc; ++c)
+         {
+             const int batchCamIndex = c % nbRcPerBatch;
 
-            if (_depthMapParams.exportTilePattern)
-                exportDepthSimMapTilePatternObj(c, _mp, _tileRoiList, depthMinMaxTilePerCam.at(batchCamIndex));
-        }
-    }
+             if (_depthMapParams.useRefine)
+                 writeDepthSimMapFromTileList(
+                   c, _mp, _tileParams, _tileRoiList, depthSimMapTilePerCam.at(batchCamIndex), _refineParams.scale, _refineParams.stepXY);
+             else
+                 writeDepthSimMapFromTileList(
+                   c, _mp, _tileParams, _tileRoiList, depthSimMapTilePerCam.at(batchCamIndex), _sgmParams.scale, _sgmParams.stepXY);
+
+             if (_depthMapParams.exportTilePattern)
+                 exportDepthSimMapTilePatternObj(c, _mp, _tileRoiList, depthMinMaxTilePerCam.at(batchCamIndex));
+         }
+     }
+
+    // Wait for kernel execution to finish
+    DeviceManager::getInstance().getCommandManager(mtlDeviceID)->waitAll();
 
     // merge intermediate results tiles if needed and desired
     if (tiles.size() > cams.size())
