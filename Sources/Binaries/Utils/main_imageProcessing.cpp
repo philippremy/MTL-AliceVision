@@ -4,6 +4,7 @@
 // v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#include <AV/bundleHelper.hpp>
 #include <AVSystem/Logger.hpp>
 #include <AVCMDLine/cmdline.hpp>
 #include <AVSystem/main.hpp>
@@ -1564,12 +1565,24 @@ int aliceVision_main(int argc, char* argv[])
                 const auto root = image::getAliceVisionRoot();
                 if (root.empty())
                 {
-                    ALICEVISION_LOG_WARNING("ALICEVISION_ROOT is not defined, default sensor database cannot be accessed.");
+                    // On macOS, attempt to resolve via bundle
+                    const auto tryBundleResource = getResourceFromBundle(BundleResource::SENSOR_DB);
+                    if(tryBundleResource)
+                        sensorDatabasePath = tryBundleResource.value();
                 }
                 else
                 {
                     sensorDatabasePath = root + "/share/aliceVision/cameraSensors.db";
                 }
+                if(!utils::exists(sensorDatabasePath))
+                {
+                    // On macOS, attempt to resolve via bundle
+                    const auto tryBundleResource = getResourceFromBundle(BundleResource::SENSOR_DB);
+                    if(tryBundleResource)
+                        sensorDatabasePath = tryBundleResource.value();
+                }
+                if(!utils::exists(sensorDatabasePath))
+                    ALICEVISION_LOG_WARNING("ALICEVISION_ROOT is not defined, default sensor database cannot be accessed.");
             }
             if (!sensorDatabasePath.empty() && !sensorDB::parseDatabase(sensorDatabasePath, sensorDatabase))
             {
