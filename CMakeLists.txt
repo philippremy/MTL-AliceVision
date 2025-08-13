@@ -208,19 +208,15 @@ endif()
 ###===================================================
 
 # Optimize build for known architectures
-include(OptimizeForArchitecture)
+include(OFA/OptimizeForArchitecture)
 # Only optimize on Apple if not both architectures are build
 set(ALICEVISION_HAVE_SSE 0)
-if(NOT APPLE OR NOT "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64;x86_64")
-    OptimizeForArchitecture()
-    if (SSE2_FOUND OR TARGET_ARCHITECTURE STREQUAL "native")
-        if (MSVC AND NOT ${CMAKE_CL_64})
-            add_definitions(/arch:SSE2)
-        endif()
-        set(ALICEVISION_HAVE_SSE 1)
+OptimizeForArchitecture()
+if (SSE2_FOUND OR TARGET_ARCHITECTURE STREQUAL "native")
+    if (MSVC AND NOT ${CMAKE_CL_64})
+        add_definitions(/arch:SSE2)
     endif()
-else()
-    message(STATUS "[AliceVision] CPU/Architecture optimization disabled (does not support macOS fat binaries). The compiler will choose reasonable defaults.")
+    set(ALICEVISION_HAVE_SSE 1)
 endif()
 
 # GNU Install Dirs
