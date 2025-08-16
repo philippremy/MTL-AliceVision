@@ -36,7 +36,7 @@ macro(build_expat)
     execute_process(COMMAND ${CMAKE_COMMAND}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
             -DCMAKE_BUILD_TYPE=Release
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DBUILD_SHARED_LIBS=ON
             -DEXPAT_BUILD_DOCS=OFF
             -DEXPAT_BUILD_EXAMPLES=OFF

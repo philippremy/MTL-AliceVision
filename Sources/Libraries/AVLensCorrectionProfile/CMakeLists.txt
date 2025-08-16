@@ -13,5 +13,5 @@ alicevision_add_library(AVLensCorrectionProfile
     HEADERS ${lensCorrectionProfile_files_headers}
     PRIVATE_LINKS
         Boost::log
-        expat::expat
+        EXPAT::EXPAT
 )

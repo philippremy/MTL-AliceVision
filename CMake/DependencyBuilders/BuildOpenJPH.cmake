@@ -36,7 +36,7 @@ macro(build_openjph)
     execute_process(COMMAND ${CMAKE_COMMAND}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
             -DCMAKE_BUILD_TYPE=Release
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DBUILD_SHARED_LIBS=ON
             -DOJPH_ENABLE_TIFF_SUPPORT=ON
             -DOJPH_BUILD_TESTS=OFF
@@ -82,7 +82,7 @@ macro(build_openjph)
     endif()
 
     # Find openjph-config and set OpenJPH_DIR
-    file(GLOB_RECURSE ${CURRENT_DEPENDENCY}_CONFIG "${CMAKE_SOURCE_DIR}/External/Products/lib/cmake/openjph-Config.cmake")
+    file(GLOB_RECURSE ${CURRENT_DEPENDENCY}_CONFIG "${CMAKE_SOURCE_DIR}/External/Products/lib/cmake/openjph-config.cmake")
     if(${CURRENT_DEPENDENCY}_CONFIG)
         get_filename_component(SUBFOLDER_PATH "${${CURRENT_DEPENDENCY}_CONFIG}" DIRECTORY)
         # Store in cache

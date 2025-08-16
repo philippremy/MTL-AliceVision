@@ -31,6 +31,17 @@ set(FEATS_H
     stringop.h
 )
 
+# Set definitions based on available CPU features
+set(SSE2_DEF)
+set(AVX_DEF)
+if(NOT HAVE_SSE2)
+    set(SSE2_DEF "-DVL_DISABLE_SSE2")
+endif()
+
+if(NOT HAVE_AVX)
+    set(AVX_DEF "-DVL_DISABLE_AVX")
+endif()
+
 set_source_files_properties(${FEATS} ${FEATS_H} PROPERTIES LANGUAGE C)
 set_source_files_properties(${FEATS_H} PROPERTIES HEADER_FILE_ONLY TRUE)
 
@@ -48,4 +59,6 @@ alicevision_add_library(VLFeat
         ${VLFEAT_OPENMP_TARGETS}
     PRIVATE_DEFINITIONS
         "-DVL_BUILD_DLL"
+        ${SSE2_DEF}
+        ${AVX_DEF}
 )

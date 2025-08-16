@@ -73,11 +73,11 @@ if (OPENMP_FOUND)
     # target_compile_definitions(MeshSDLibrary PUBLIC "$<$<CONFIG:RELEASE>:USE_OPENMP>")
     # target_link_libraries(MeshSDLibrary "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>")
 
-    target_compile_options(MeshSDFilter PUBLIC "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>")
+    # target_compile_options(MeshSDFilter PUBLIC "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>")
     target_compile_definitions(MeshSDFilter PUBLIC "$<$<CONFIG:RELEASE>:USE_OPENMP>")
     target_link_libraries(MeshSDFilter "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>" OpenMP::OpenMP_CXX)
 
-    target_compile_options(MeshDenoiser PUBLIC "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>")
+    # target_compile_options(MeshDenoiser PUBLIC "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>")
     target_compile_definitions(MeshDenoiser PUBLIC "$<$<CONFIG:RELEASE>:USE_OPENMP>")
     target_link_libraries(MeshDenoiser "$<$<CONFIG:RELEASE>:${OpenMP_CXX_FLAGS}>" OpenMP::OpenMP_CXX)
 endif()

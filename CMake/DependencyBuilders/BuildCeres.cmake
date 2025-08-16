@@ -29,14 +29,14 @@ macro(build_ceres)
     endif()
 
     # Create Build Directory
-    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build")
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/BuildDir")
 
     # Configure
     message(STATUS "[AliceVision] Configuring ${CURRENT_DEPENDENCY}...")
     execute_process(COMMAND ${CMAKE_COMMAND}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
             -DCMAKE_BUILD_TYPE=Release
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DBUILD_SHARED_LIBS=ON
             -DACCELERATESPARSE=ON
             -DENABLE_BITCODE=OFF
@@ -51,7 +51,7 @@ macro(build_ceres)
             -Dabsl_VERSION=20250701
             -G "${CMAKE_GENERATOR}"
             ..
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/BuildDir"
             RESULT_VARIABLE CONFIGURE_RESULT_${CURRENT_DEPENDENCY}
             OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/CMAKE_STDOUT.log"
             ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/CMAKE_STDERR.log"
@@ -65,7 +65,7 @@ macro(build_ceres)
     execute_process(COMMAND ${CMAKE_COMMAND}
             --build .
             -j${NCPUs}
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/BuildDir"
             RESULT_VARIABLE BUILD_RESULT_${CURRENT_DEPENDENCY}
             OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/BUILD_STDOUT.log"
             ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/BUILD_STDERR.log"
@@ -79,7 +79,7 @@ macro(build_ceres)
     execute_process(COMMAND ${CMAKE_COMMAND}
             --install .
             --strip
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/BuildDir"
             RESULT_VARIABLE INSTALL_RESULT_${CURRENT_DEPENDENCY}
             OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/INSTALL_STDOUT.log"
             ERROR_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/INSTALL_STDERR.log"

@@ -31,14 +31,24 @@ macro(build_boost)
     # Create Build Directory
     file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}/Build")
 
+    # Generate Context Architecture
+    set(BOOST_CTX_ARCH)
+    if(APPLE AND (${CMAKE_OSX_ARCHITECTURES} STREQUAL "arm64;x86_64" OR ${CMAKE_OSX_ARCHITECTURES} STREQUAL "x86_64;arm64"))
+        set(BOOST_CTX_ARCH "combined")
+    elseif(APPLE)
+        set(BOOST_CTX_ARCH "${CMAKE_OSX_ARCHITECTURES}")
+    else()
+        set(BOOST_CTX_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+
     # Configure
     message(STATUS "[AliceVision] Configuring ${CURRENT_DEPENDENCY}...")
     execute_process(COMMAND ${CMAKE_COMMAND}
         -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
         -DCMAKE_BUILD_TYPE=Release
-        "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+        "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
         "-DBOOST_INCLUDE_LIBRARIES=${ALICEVISION_BOOST_COMPONENTES}"
-        -DBOOST_CONTEXT_ARCHITECTURE=combined
+        "-DBOOST_CONTEXT_ARCHITECTURE=${CMAKE_OSX_ARCHITECTURES}"
         -DBOOST_INSTALL_LAYOUT=system
         -DBOOST_STACKTRACE_USE_WINDBG=ON
         -DBOOST_STACKTRACE_USE_BACKTRACE=OFF

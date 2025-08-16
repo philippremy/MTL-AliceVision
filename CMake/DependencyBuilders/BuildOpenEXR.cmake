@@ -36,7 +36,7 @@ macro(build_openexr)
     execute_process(COMMAND ${CMAKE_COMMAND}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
             -DCMAKE_BUILD_TYPE=Release
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DCMAKE_PREFIX_PATH=${CMAKE_SOURCE_DIR}/External/Products
             -DOPENEXR_INSTALL=ON
             -DOPENEXR_INSTALL_TOOLS=OFF

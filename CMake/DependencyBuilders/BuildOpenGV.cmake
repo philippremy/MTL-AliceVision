@@ -31,7 +31,7 @@ macro(build_opengv)
     # We need to patch the CMakeLists.txt file
     # OpenGV hard-passes -march=native, which is unsupported for cross-compiling
     execute_process(COMMAND ${GIT_EXECUTABLE}
-            apply "${CMAKE_SOURCE_DIR}/CMake/Patches/OPENGV-OSX-CPU-flags.patch"
+            apply "${CMAKE_SOURCE_DIR}/CMake/Patches/OPENGV-OSX-CPU-flags_casserts.patch"
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}"
             RESULT_VARIABLE PATCH_RESULT_${CURRENT_DEPENDENCY}
             OUTPUT_FILE "${CMAKE_SOURCE_DIR}/External/Logs/${CURRENT_DEPENDENCY}/PATCH_STDOUT.log"
@@ -52,7 +52,7 @@ macro(build_opengv)
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_CXX_STANDARD=20
             -DCMAKE_CXX_STANDARD_REQUIRED=ON
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DCMAKE_PREFIX_PATH=${CMAKE_SOURCE_DIR}/External/Products
             -DBUILD_SHARED_LIBS=ON
             -DBUILD_TESTS=OFF

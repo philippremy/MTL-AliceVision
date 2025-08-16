@@ -94,7 +94,7 @@ macro(build_opencv)
                 -DWITH_EIGEN=ON
                 -DWITH_IPP=OFF
                 -DWITH_JASPER=OFF
-                -DWITH_OPENMP=${ALICEVISION_HAVE_OPENMP}
+                -DWITH_OPENMP=OFF # Causes Linker Issues on macOS!
                 -DWITH_LAPACK=ON
                 -DWITH_ITT=OFF
                 -DWITH_PROTOBUF=OFF

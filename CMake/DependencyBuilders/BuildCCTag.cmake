@@ -50,7 +50,7 @@ macro(build_cctag)
     execute_process(COMMAND ${CMAKE_COMMAND}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/External/Products
             -DCMAKE_BUILD_TYPE=Release
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DCMAKE_PREFIX_PATH=${CMAKE_SOURCE_DIR}/External/Products
             -DBUILD_SHARED_LIBS=ON
             -DCCTAG_WITH_CUDA=${ALICEVISION_USE_CUDA}

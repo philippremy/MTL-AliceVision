@@ -38,7 +38,7 @@ macro(build_glog)
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_CXX_STANDARD=20
             -DCMAKE_CXX_STANDARD_REQUIRED=ON
-            "-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64"
+            "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
             -DBUILD_SHARED_LIBS=ON
             -DBUILD_EXAMPLES=OFF
             -DWITH_GFLAGS=ON

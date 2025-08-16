@@ -108,12 +108,8 @@ set(ALICEVISION_HAVE_JPEG 1)
 
 # ZLIB and minizip
 set(ALICEVISION_HAVE_ZLIB 0)
-set(ALICEVISION_HAVE_MINIZIP 0)
 alicevision_handle_dependency(ZLIB REQUIRED COMPONENTS)
-# SHOULD BE AVAILABLE BY 0W
-alicevision_handle_dependency(minizip REQUIRED)
 set(ALICEVISION_HAVE_ZLIB 1)
-set(ALICEVISION_HAVE_MINIZIP 1)
 
 # PNG
 set(ALICEVISION_HAVE_PNG 0)
@@ -122,7 +118,7 @@ set(ALICEVISION_HAVE_PNG 1)
 
 # Expat
 set(ALICEVISION_HAVE_EXPAT 0)
-alicevision_handle_dependency(Expat REQUIRED)
+alicevision_handle_dependency(EXPAT REQUIRED)
 set(ALICEVISION_HAVE_EXPAT 1)
 
 # YAML-CPP
@@ -389,9 +385,8 @@ alicevision_print_dep(OpenEXR ALICEVISION_HAVE_OPENEXR)
 alicevision_print_dep(TIFF ALICEVISION_HAVE_TIFF)
 alicevision_print_dep(JPEG ALICEVISION_HAVE_JPEG)
 alicevision_print_dep(ZLIB ALICEVISION_HAVE_ZLIB)
-alicevision_print_dep(MINIZIP ALICEVISION_HAVE_MINIZIP)
 alicevision_print_dep(PNG ALICEVISION_HAVE_PNG)
-alicevision_print_dep(Expat ALICEVISION_HAVE_EXPAT)
+alicevision_print_dep(EXPAT ALICEVISION_HAVE_EXPAT)
 alicevision_print_dep(Yaml-Cpp ALICEVISION_HAVE_YAML-CPP)
 alicevision_print_dep(Pystring ALICEVISION_HAVE_PYSTRING)
 alicevision_print_dep(OpenColorIO ALICEVISION_HAVE_OPENCOLORIO)
