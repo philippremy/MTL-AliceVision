@@ -82,10 +82,7 @@ foreach(FILE IN LISTS BUNDLE_LIBRARIES_FRAMEWORKS BUNDLE_BINARIES_NOSYMLINKS)
     list(APPEND GLOBAL_RPATHS "${EXTRACTED_RPATH_PATHS}")
 endforeach()
 # Remove duplicates
-cmake_policy(PUSH)
-cmake_policy(SET CMP0007 NEW)
 list(REMOVE_DUPLICATES GLOBAL_RPATHS)
-cmake_policy(POP)
 
 # Remove rpaths which do not exist
 set(VALID_GLOBAL_RPATHS)
@@ -152,7 +149,7 @@ foreach(LIB IN LISTS GLOBAL_REQUIRED_LIBS_NO_SYS_LIBS)
     if(FOUND_PATHS_COUNT EQUAL 0)
         list(APPEND DEPS_UNRESOLVED "${LIB}")
     elseif(FOUND_PATHS_COUNT GREATER 1)
-        list(APPEND DEPS_CONFLICTING "${LIB}(${FOUND_PATHS})")
+        list(APPEND DEPS_CONFLICTING "${FOUND_PATHS}")
     else()
         list(APPEND DEPS_RESOLVED "${FOUND_PATHS}")
     endif()
@@ -188,7 +185,7 @@ endif()
 # All dependencies resolved, we will copy them
 # Generate normalized paths for every dependency found
 set(REAL_DEPENDENCY_PATHS)
-foreach(PATH IN LISTS DEPS_RESOLVED)
+foreach(PATH IN LISTS DEPS_RESOLVED DEPS_CONFLICTING)
     # Dirty hack to restore the symlinks after REAL_PATH
     # Save the file name, and later re-append it
     get_filename_component(TEMP_FILENAME "${PATH}" NAME)
@@ -314,8 +311,23 @@ while(NEW_DEPENDENCIES_FOUND)
 
     # Copy new dependencies found in this iteration
     foreach(NEW_DEP IN LISTS NEW_DEPENDENCIES)
-        # Copy to bundle Libraries dir
-        file(COPY "${NEW_DEP}" DESTINATION "${BUNDLE}/Contents/Libraries" FOLLOW_SYMLINK_CHAIN)
+        # Detect if the dependency is inside a .framework
+        string(FIND "${NEW_DEP}" ".framework/" FRAMEWORK_INDEX)
+
+        if(NOT FRAMEWORK_INDEX EQUAL -1)
+            # It's a framework — extract root path (e.g., /path/to/Foo.framework)
+            string(REGEX MATCH ".+\\.framework" FRAMEWORK_ROOT "${NEW_DEP}")
+
+            # Copy entire framework directory
+            execute_process(COMMAND rsync
+                -a --delete --copy-unsafe-links
+                "${FRAMEWORK_ROOT}"
+                "${BUNDLE}/Contents/Libraries"
+            )
+        else()
+            # It's a regular shared library (.dylib) — copy as-is
+            file(COPY "${NEW_DEP}" DESTINATION "${BUNDLE}/Contents/Libraries" FOLLOW_SYMLINK_CHAIN)
+        endif()
         # Add to ALL_COPIED_DEPENDENCIES to check their dependencies next iteration
         list(APPEND ALL_COPIED_DEPENDENCIES "${NEW_DEP}")
     endforeach()
