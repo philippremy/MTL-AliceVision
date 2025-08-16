@@ -231,11 +231,27 @@ void resizeImage(oiio::TypeDesc typeDesc,
     const oiio::ImageBuf inBuf(oiio::ImageSpec(inWidth, inHeight, nchannels, typeDesc), const_cast<T*>(inBuffer));
     oiio::ImageBuf outBuf(oiio::ImageSpec(outWidth, outHeight, nchannels, typeDesc), outBuffer);
 
-    oiio::ImageBufAlgo::KWArgs options = oiio::ImageBufAlgo::KWArgs({
+    // NOTE: The previous implementation looked like this:
+    //
+    // oiio::ImageBufAlgo::KWArgs options = oiio::ImageBufAlgo::KWArgs({
+    //    oiio::ParamValue("filtername", filter),
+    //    oiio::ParamValue("filterwidth", filterSize)
+    // });
+    //
+    // On x86_64, this appears to "just work", but might actually be UB.
+    // It appears that the initialization-list constructor does not actually
+    // perform a deep copy of the values - this appears to only be a problem
+    // for oiio::ustring, which then accesses an out-of-scope temporary stack
+    // variable. This caused a SIGSEGV on macOS arm64.
+    //
+    // Workaround: Use a std::array to explicitly make the ParamValues
+    // available until the actual function scope ends.
+    std::array<oiio::ParamValue, 2> options = {
         oiio::ParamValue("filtername", filter),
         oiio::ParamValue("filterwidth", filterSize)
-    });
-    oiio::ImageBufAlgo::resize(outBuf, inBuf, options, oiio::ROI::All());
+    };
+
+    oiio::ImageBufAlgo::resize(outBuf, inBuf, oiio::ImageBufAlgo::KWArgs(options), oiio::ROI::All());
 }
 
 void resizeImage(int downscale,
