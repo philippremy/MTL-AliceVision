@@ -86,11 +86,6 @@ set(ALICEVISION_HAVE_IMATH 0)
 alicevision_handle_dependency(Imath REQUIRED)
 set(ALICEVISION_HAVE_IMATH 1)
 
-# OpenJPH
-set(ALICEVISION_HAVE_OPENJPH 0)
-alicevision_handle_dependency(openjph REQUIRED)
-set(ALICEVISION_HAVE_OPENJPH 1)
-
 # OpenEXR
 set(ALICEVISION_HAVE_OPENEXR 0)
 alicevision_handle_dependency(OpenEXR REQUIRED)
@@ -380,7 +375,6 @@ alicevision_print_dep(Eigen3 ALICEVISION_HAVE_EIGEN3)
 alicevision_print_dep(LAPACK ALICEVISION_HAVE_LAPACK)
 alicevision_print_dep(BLAS ALICEVISION_HAVE_BLAS)
 alicevision_print_dep(IMath ALICEVISION_HAVE_IMATH)
-alicevision_print_dep(OpenJPH ALICEVISION_HAVE_OPENJPH)
 alicevision_print_dep(OpenEXR ALICEVISION_HAVE_OPENEXR)
 alicevision_print_dep(TIFF ALICEVISION_HAVE_TIFF)
 alicevision_print_dep(JPEG ALICEVISION_HAVE_JPEG)
