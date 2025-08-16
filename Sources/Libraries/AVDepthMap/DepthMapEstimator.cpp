@@ -271,8 +271,8 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
     std::vector<std::unique_ptr<Sgm>> sgmPerStream;
     std::vector<std::unique_ptr<Refine>> refinePerStream;
 
-    sgmPerStream.reserve(nbStreams);
-    refinePerStream.reserve(_depthMapParams.useRefine ? nbStreams : 0);
+    sgmPerStream.reserve(tiles.size());
+    refinePerStream.reserve(_depthMapParams.useRefine ? tiles.size() : 0);
 
     // initialize Sgm and Refine objects
     {
@@ -280,12 +280,12 @@ void DepthMapEstimator::compute(uint64_t mtlDeviceID, const std::vector<int>& ca
         const bool sgmComputeNormalMap = _refineParams.useSgmNormalMap;
 
         // initialize Sgm objects
-        for (int i = 0; i < nbStreams; ++i)
+        for (int i = 0; i < tiles.size(); ++i)
             sgmPerStream.emplace_back(std::make_unique<Sgm>(_mp, _tileParams, _sgmParams, sgmComputeDepthSimMap, sgmComputeNormalMap, mtlDeviceID));
 
         // initialize Refine objects
         if (_depthMapParams.useRefine)
-            for (int i = 0; i < nbStreams; ++i)
+            for (int i = 0; i < tiles.size(); ++i)
                 refinePerStream.emplace_back(std::make_unique<Refine>(_mp, _tileParams, _refineParams, mtlDeviceID));
     }
 
