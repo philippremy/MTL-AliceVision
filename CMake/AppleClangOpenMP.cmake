@@ -1,7 +1,7 @@
 macro(alicevision_fixup_appleclang_openmp)
 
     # We assume that the dependency helper actually build OpenMP successfully
-    find_file(OpenMP_C_Library libomp.a
+    find_file(OpenMP_C_Library libomp.dylib
         PATHS "${CMAKE_SOURCE_DIR}/External/Products/lib"
         PATH_SUFFIXES "llvm"
     )
