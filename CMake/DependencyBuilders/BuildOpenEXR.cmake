@@ -16,7 +16,7 @@ macro(build_openexr)
         # Fetch Boost
         message(STATUS "[AliceVision] Fetching ${CURRENT_DEPENDENCY}...")
         execute_process(COMMAND ${GIT_EXECUTABLE}
-                clone --depth 1
+                clone --depth 1 --branch v3.3.3
                 https://github.com/AcademySoftwareFoundation/openexr.git
                 "${CMAKE_SOURCE_DIR}/External/${CURRENT_DEPENDENCY}"
                 RESULT_VARIABLE GIT_RESULT_${CURRENT_DEPENDENCY}
