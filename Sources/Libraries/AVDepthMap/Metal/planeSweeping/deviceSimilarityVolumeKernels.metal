@@ -485,7 +485,7 @@ kernel void volume_retrieveBestDepth_kernel(device float2* out_sgmDepthThickness
     out_bestDepthThicknessPtr->x = out_bestDepth;
     out_bestDepthThicknessPtr->y = out_bestDepthThickness;
 
-    if(out_sgmDepthSimMap_d != nullptr)
+    if(out_bestDepthSimPtr != nullptr)
     {
         // write output depth/sim
         out_bestDepthSimPtr->x = out_bestDepth;
