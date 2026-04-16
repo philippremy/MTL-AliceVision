@@ -12,8 +12,8 @@ There is a WIP effort to port the relevant changes to the upstream AliceVision r
 
 Upstreaming will be a multi-part process:
 
-Currently, I opened a draft PR which should re-add the infrastructure needed to build AliceVision on macOS at all. Feel free to participate in the RFC, test out the build process and report any issues: [RFC: Re-add support for macOS](https://github.com/alicevision/AliceVision/pull/2019).
+The PR to upstream the infrastructure stuff is now out of the RFC phase and ready to be merged. Thumbs pressed that it actually will be in upstream soon: [Re-add support for macOS](https://github.com/alicevision/AliceVision/pull/2019).
 
-Once merged, I will attempt to port the DepthMap changes to the upstream project.
+I initially planned on upstreaming the Metal DepthMap backend as well. However, that might actually be obsolete because there is a unified backend using SYCL in the works. I will test out if AdaptiveCpp's Metal backend is stable and good enough to support the DepthMap library and if so, consider dropping the native Metal backend in favor of the former.
 
 [^1]: You can make it work by adapting various hardcoded paths in Meshrooms `__init__.py` scripts.
